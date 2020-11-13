@@ -415,9 +415,9 @@ f = get_close_matches(test[0], input_images, n=4, cutoff=0.6)
 from difflib import get_close_matches
 
 ch1 = 'w1DAPI'
-ch2 = 'w2GFP'
+ch2 = 'w2Cy5'
 ch3 = 'w3mCherry'
-ch4 = 'w4Cy5'
+ch4 = 'w4GFP'
 
 ch_list = [ch1, ch2, ch3, ch4]
 
@@ -479,27 +479,34 @@ def read_image_channels(filelist_path, channels):
     """
     
     """
-    # Create an empty 3d array with a shape of channels, image height, and image width
-    # Based on first image
-    img_arr = np.zeros((len(channels),
-                        io.imread(filelist_path[0][0]).shape[0],
-                        io.imread(filelist_path[0][0]).shape[1]))
+
+
 
     # Empty list to hold 3d arrays of images
     img = []
     
     for image in filelist_path:
-        for i, channel in enumerate(channels):
-            if channel in image:
-                img_arr[i] = io.imread(image)
+        # Create an empty 3d array with a shape of channels, image height, and image width
+        # Based on first image
+        img_arr = np.zeros((len(channels),
+                            io.imread(filelist_path[0][0]).shape[0],
+                            io.imread(filelist_path[0][0]).shape[1]))
+        #print(image)
+        for channel_img in image:
+            #print(channel_img)
+            for i, channel_name in enumerate(channels):
+                if channel_name in channel_img:
+                    print(channel_img)
+                    img_arr[i] = io.imread(channel_img)
+                    print(img_arr[i])
         img.append(img_arr)
-    
-    
-    
+
     return img
 
 
 q = read_image_channels(grouped_filelist, ch_list)
+
+# plt.imshow(q[0][1], cmap='gray')
 
 # Number of images
 len(q)
@@ -521,7 +528,7 @@ def identify_nuclei(image_array, nuclei_channel):
                 print(channel)
                 
                 
-identify_nuclei(grouped_filelist, 'w1DAPI')
+identify_nuclei(grouped_filelist, 'DAPI')
 
 #%% 
 
@@ -537,7 +544,8 @@ for i in grouped_filelist:
 
 
 
-
+#%%
+test = io.imread(grouped_filelist[0][0])
 
 
 
