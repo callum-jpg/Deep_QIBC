@@ -496,15 +496,13 @@ def read_image_channels(filelist_path, channels):
             #print(channel_img)
             for i, channel_name in enumerate(channels):
                 if channel_name in channel_img:
-                    print(channel_img)
                     img_arr[i] = io.imread(channel_img)
-                    print(img_arr[i])
         img.append(img_arr)
 
     return img
 
 
-q = read_image_channels(grouped_filelist, ch_list)
+input_images = read_image_channels(grouped_filelist, ch_list)
 
 # plt.imshow(q[0][1], cmap='gray')
 
@@ -517,18 +515,61 @@ q[0].shape
 
 #%% Identify nuclei
 
+# Create a function to get position/index of a particular channel
+# Will allow for the returned index to be able to slice the img np.array
+
+test = [q[0][0], q[1][0]]
+np.concatenate(test)
+threshold_otsu(np.concatenate(test))
+
+def calculate_otsu_threshold(image_array, nuclei_channel):
+    """
+    """
+    # Select the index for the given channel from ch_list
+    nuclei_index = [(i, j) for i, j in enumerate(ch_list) if nuclei_channel in j][0][0]
+    
+    threshold_list = []
+    
+    for image in image_array:
+        threshold_list.append(image[nuclei_index])
+    
+    #print(threshold_list)
+    
+    return threshold_otsu(np.concatenate(threshold_list, axis=0))
+
+image_threshold = calculate_otsu_threshold(input_images, ch_list[0])
+
+
+#%%
+
 def identify_nuclei(image_array, nuclei_channel):
     """
 
     """
+    nuclei_index = [(i, j) for i, j in enumerate(ch_list) if nuclei_channel in j][0][0]
     
-    for image in image_array:
-        for channel in image:
-            if nuclei_channel in channel:
-                print(channel)
+    threshold = calculate_otsu_threshold(image_array, nuclei_channel)
+    
+    for img in image_array:
+        # Find pixels above threshold
+        thresh_img = img[nuclei_index] > threshold
+        
+        # Clear object border
+        
+        # Smooth intensity, then binary_smooth
+        
+        # calculate watershed
+        
+        # then label watershed. These are the identified nuclei
+        
+        # Store nuclei masks in list of tuples
+        # (image_number, np.array)
+        # eg [(0, np.arr), (1, np.arr)...]
+                    
                 
-                
-identify_nuclei(grouped_filelist, 'DAPI')
+identify_nuclei(input_images, ch_list[0])
+
+# Next, use labelled nuclei array to extract intensity info from full channel img array
 
 #%% 
 
