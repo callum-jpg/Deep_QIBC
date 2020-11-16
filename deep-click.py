@@ -274,6 +274,8 @@ colour_labs = label2rgb(segmented_obj, bg_label=0)
 #%%
 # Measuring pixel intensities
 
+img = io.imread(filename)
+
 # Incrementally label nuclei based on watershed 
 obj_labels = label(segmented_obj) 
 
@@ -477,11 +479,8 @@ grouped_filelist = file_group(input_image_path, ch_list, 4)
 
 def read_image_channels(filelist_path, channels):
     """
-    
+    For a given filelist, import images as 3d numpy arrays (channel, height, width)
     """
-
-
-
     # Empty list to hold 3d arrays of images
     img = []
     
@@ -507,26 +506,36 @@ input_images = read_image_channels(grouped_filelist, ch_list)
 # plt.imshow(q[0][1], cmap='gray')
 
 # Number of images
-len(q)
+len(input_images)
 
 # (number of channels, height, width)
-q[0].shape
+input_images[0].shape
 
 
 #%% Identify nuclei
 
-# Create a function to get position/index of a particular channel
-# Will allow for the returned index to be able to slice the img np.array
+def channel_idx1(channel):
+    """
+    Return the index for a given channel of ch_list
+    """
+    
+    for idx, j in enumerate(ch_list):
+        if channel in j:
+            return idx
 
-test = [q[0][0], q[1][0]]
-np.concatenate(test)
-threshold_otsu(np.concatenate(test))
+nuclei_index = channel_idx1(ch1)
+
+
+###
+# Maybe threshold should be calculated independently for every image?
+###
 
 def calculate_otsu_threshold(image_array, nuclei_channel):
     """
+    Calculate the otsu threshold. Improves segmentation
     """
     # Select the index for the given channel from ch_list
-    nuclei_index = [(i, j) for i, j in enumerate(ch_list) if nuclei_channel in j][0][0]
+    nuclei_index = channel_idx(nuclei_channel)
     
     threshold_list = []
     
@@ -544,49 +553,205 @@ image_threshold = calculate_otsu_threshold(input_images, ch_list[0])
 
 def identify_nuclei(image_array, nuclei_channel):
     """
-
+    Creates a labelled mask for nuclei as identified by thresholding and waterhsed
     """
-    nuclei_index = [(i, j) for i, j in enumerate(ch_list) if nuclei_channel in j][0][0]
+    nuclei_index = channel_idx1(nuclei_channel)
     
     threshold = calculate_otsu_threshold(image_array, nuclei_channel)
     
-    for img in image_array:
-        # Find pixels above threshold
-        thresh_img = img[nuclei_index] > threshold
+    nuclei_masks = []
+    
+    for image in image_array:
+        
+        img = image[nuclei_index]
+        
+        #Find pixels above threshold for a nuclei image
+        thresh_img = img > threshold
         
         # Clear object border
+        thresh_img = clear_border(thresh_img)
         
         # Smooth intensity, then binary_smooth
+        smoothing = rank.mean(img_as_ubyte(thresh_img), disk(4))
+        # Convert disk regions to True/False. Values are either 0 or 255 since 8-bit
+        binary_smooth = smoothing > 20
         
-        # calculate watershed
+        # Calculate watershed to split overlapping obj
+        distance = ndimage.distance_transform_edt(binary_smooth)
         
-        # then label watershed. These are the identified nuclei
+        # Min distance can change based on magnification
+        local_maxi = peak_local_max(distance, indices=False,
+                                    min_distance=15)
         
-        # Store nuclei masks in list of tuples
-        # (image_number, np.array)
-        # eg [(0, np.arr), (1, np.arr)...]
-                    
+        markers = label(local_maxi)
+        
+        segmented_nuclei = watershed(-distance, markers, mask=binary_smooth)
+        
+        # labelled_nuclei = label(segmented_nuclei) 
+        
+        # labelled_nuclei1 = label2rgb(segmented_nuclei, bg_label=0)
+        
+        nuclei_masks.append(segmented_nuclei)
+            
+    return nuclei_masks
+
+
+
+# Visualise original objects vs smoothed
+# fig, ax = plt.subplots(ncols=3, figsize=(15, 5))
+# ax[0].imshow(img, cmap='gray')
+# ax[1].imshow(obj)
+# ax[2].imshow(binary_smooth)                    
                 
-identify_nuclei(input_images, ch_list[0])
+labs = identify_nuclei(input_images, ch_list[0])
+
+fig, ax = plt.subplots()
+ax.imshow(labs[0], cmap='gray')
+ax.axis('off')
 
 # Next, use labelled nuclei array to extract intensity info from full channel img array
 
-#%% 
+# Using ndimage for labelling instead of skimage
 
-# threshold
-# watershed nuclei
-# label nuclei
+# skimage label connectivity seems to be different from ndimage.label
+# Probably due to differences in neighbouring structure.
+# Was unable to find out which neighbouring array to use with skimage
+# to replicate ndimage.label labelling
+
+t = [label(i, connectivity=2) for i in labs]
+
+test, rtr = ndimage.label(labs[0], np.ones((3,3)))
 
 
-for i in grouped_filelist:
-    #print(i)
-    for j in i:
-        print(j)
+fig, ax = plt.subplots(ncols=2, nrows=2)
+ax[0,0].imshow(test, cmap='gray')
+ax[0,0].set_title(np.max(test))
+ax[0,1].imshow(t[0], cmap='gray')
+ax[0,1].set_title(np.max(t[0]))
+
+ax[1,0].imshow(label2rgb(test, bg_label=0))
+ax[1,1].imshow(label2rgb(t[0], bg_label=0))
+
+
+#%% Concatenate nuclei, label, then split
+
+test = np.concatenate(labs)
+
+lab_nuc, nuc_number =  ndimage.label(test, np.ones((3,3)))
+
+split_test = np.split(lab_nuc, len(grouped_filelist), axis=0)
+
+# # Test to find min that isnt 0
+# masked_array = np.ma.masked_equal(split_test[1], 0, copy=False)
+# masked_array.min()
+
+# Alternaitvely
+single_arr = split_test[0]
+np.min(single_arr[np.nonzero(single_arr)])
+
+#%%
+
+def record_intensity(img, nuclei_mask):
+    """
+    Record the intensity of the image within the given object mask. 
+    Labels are defined the mask
+    """
+    
+    # Record the min and max object number, excluding 0's
+    # The first labeled object is 1
+    mask_min = np.min(nuclei_mask[np.nonzero(nuclei_mask)])
+    
+    mask_max = np.max(nuclei_mask[np.nonzero(nuclei_mask)])
+    
+    # Range across the number of objects in the mask + 1
+    object_number = [obj for obj in range(mask_min, mask_max + 1)]
+    
+    # nuclei_mask == obj returns a bool array which is true for 
+    # objects which match the obj.
+    # That is, Object 1 in the array will be TRUE when obj = 1,     
+    # whereas object 2 will be false.
+    # Intensities will be calculated only for ture labels. 
+    intensity = [ndimage.mean(img, labels=(np.equal(obj_labels, obj))) 
+                              for obj in range(mask_min, mask_max + 1)]
+    
+    return object_number, intensity
+
+
+record_intensity(input_images[0][0], split_test[0])
+#%% Testing list comprehension intensity readings
+
+obj_labels = label(labs[0])
+
+nuclei_number = [obj
+                 for obj in range(1, obj_labels.max()+1)]
+
+mean_intensity = [ndimage.mean(input_images[0][0], obj)
+                  for obj in range(1, obj_labels.max()+1)]
+
+
+#%%
+
+a = np.arange(25).reshape((5,5))
+
+labels = np.zeros_like(a)
+
+labels[0:2,0:2] = False
+labels[3:5, 2:] = True
+
+index = np.unique(labels)
+
+print(ndimage.mean(a, labels=labels))
+
+#%%
+
+# Measuring pixel intensities
+
+img = io.imread(filename)
+
+# Incrementally label nuclei based on watershed 
+obj_labels = label(segmented_obj) 
+
+
+nuclei_number = [obj
+                 for obj in range(1, labs.max()+1)]
+
+# mean_intensity = [ndimage.mean(img, obj_labels == obj)
+#                   for obj in range(1, obj_labels.max()+1)]
+
+# total_intensity = [ndimage.sum(img, obj_labels == obj)
+#                    for obj in range(1, obj_labels.max()+1)]
+
+# area = [(obj_labels == obj).sum() 
+#           for obj in range(1, obj_labels.max()+1)] 
+
+# # sum_div_area is a test to ensure that mean is the total intensity in a object
+# # divided by the total number of pixels
+# sum_div_area = [ndimage.sum(img, obj_labels == obj) / (obj_labels == obj).sum()
+#                 for obj in range(1, obj_labels.max() + 1)]
+
+# # Create a list of lists for all data
+# data = [] 
+# data.append(nuclei_number)
+# data.append(mean_intensity)
+# data.append(total_intensity)
+# data.append(area)
+# data.append(sum_div_area)
+
+# # Declare column names, in order of list of list elements
+# cols = ['nuc_number', 'mean', 'total', 'area', 'sum_div_area']
+
+# # Transpose writes columns as rows 
+# # Since list of lists creates a len(list) wide df
+# df = pd.DataFrame.from_dict(data).transpose()
+# df.columns = cols
+# df[cols[0]] = df[cols[0]].astype(np.int64) # Remove trailing .0 added by pandas if ya want
+
 
 
 
 #%%
-test = io.imread(grouped_filelist[0][0])
+
+
 
 
 
