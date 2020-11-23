@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+pd.options.display.width = 150
+pd.options.display.max_columns = 8
 import os
 import numpy as np
 
@@ -514,7 +516,10 @@ input_images[0].shape
 
 #%% Identify nuclei
 
-def channel_idx1(channel):
+# Alternative 1-liner for channel_idx:
+    # ch_list.index('DAPI')
+
+def channel_idx(channel):
     """
     Return the index for a given channel of ch_list
     """
@@ -523,7 +528,7 @@ def channel_idx1(channel):
         if channel in j:
             return idx
 
-nuclei_index = channel_idx1(ch1)
+nuclei_index = channel_idx(ch1)
 
 
 ###
@@ -555,7 +560,7 @@ def identify_nuclei(image_array, nuclei_channel):
     """
     Creates a labelled mask for nuclei as identified by thresholding and waterhsed
     """
-    nuclei_index = channel_idx1(nuclei_channel)
+    nuclei_index = channel_idx(nuclei_channel)
     
     threshold = calculate_otsu_threshold(image_array, nuclei_channel)
     
@@ -634,27 +639,31 @@ ax[1,1].imshow(label2rgb(t[0], bg_label=0))
 
 
 #%% Concatenate nuclei, label, then split
+# Maintains an increasing count of nuclei between images
 
-test = np.concatenate(labs)
+concat_nuclei = np.concatenate(labs)
 
+# np.ones((3, 3)) is the structure by which to categorise neighbours
 lab_nuc, nuc_number =  ndimage.label(test, np.ones((3,3)))
 
-split_test = np.split(lab_nuc, len(grouped_filelist), axis=0)
+split_nuclei = np.split(lab_nuc, len(grouped_filelist), axis=0)
 
 # # Test to find min that isnt 0
 # masked_array = np.ma.masked_equal(split_test[1], 0, copy=False)
 # masked_array.min()
 
 # Alternaitvely
-single_arr = split_test[0]
-np.min(single_arr[np.nonzero(single_arr)])
+# single_arr = split_test[0]
+# np.min(single_arr[np.nonzero(single_arr)])
 
 #%%
 
-def record_intensity(img, nuclei_mask):
+def record_intensity(img, nuclei_mask, channels):
     """
     Record the intensity of the image within the given object mask. 
     Labels are defined the mask
+    
+    img is a 2d array of a multichannel image
     """
     
     # Record the min and max object number, excluding 0's
@@ -663,93 +672,131 @@ def record_intensity(img, nuclei_mask):
     
     mask_max = np.max(nuclei_mask[np.nonzero(nuclei_mask)])
     
+    # Empty list which will hold list of list for intensities
+    mean_intensity = []
+    total_intensity = []
+    
     # Range across the number of objects in the mask + 1
     object_number = [obj for obj in range(mask_min, mask_max + 1)]
-    
-    # nuclei_mask == obj returns a bool array which is true for 
+    print(object_number)
+
+    # nuclei_mask == obj (from np.equal) returns a bool array which is true for 
     # objects which match the obj.
     # That is, Object 1 in the array will be TRUE when obj = 1,     
     # whereas object 2 will be false.
     # Intensities will be calculated only for ture labels. 
-    intensity = [ndimage.mean(img, labels=(np.equal(obj_labels, obj))) 
-                              for obj in range(mask_min, mask_max + 1)]
+    for i, _ in enumerate(channels): 
+        
+        mean_intensity.append([ndimage.mean(img[i], labels=(np.equal(nuclei_mask, obj))) 
+                                  for obj in range(mask_min, mask_max + 1)])
+        
+        total_intensity.append([ndimage.sum(img[i], labels=(np.equal(nuclei_mask, obj))) 
+                                  for obj in range(mask_min, mask_max + 1)])
     
-    return object_number, intensity
+    # Return as list of lists
+    return [object_number] + mean_intensity + total_intensity
 
 
-record_intensity(input_images[0][0], split_test[0])
-#%% Testing list comprehension intensity readings
+what = record_intensity(input_images[0], split_nuclei[0], ch_list)
 
-obj_labels = label(labs[0])
+#%% Working out how to record intensities 
 
-nuclei_number = [obj
-                 for obj in range(1, obj_labels.max()+1)]
+## Notes/questions
 
-mean_intensity = [ndimage.mean(input_images[0][0], obj)
-                  for obj in range(1, obj_labels.max()+1)]
+# How to link the nuclei mask to the corresponding imageset?
+## Index alone will match
 
+# How to iterate through all channels for each image set?
+## Read length of ch_list and iterate through 2d array
+## ch_list index will correspond to the index of the corresponding channels image
 
-#%%
-
-a = np.arange(25).reshape((5,5))
-
-labels = np.zeros_like(a)
-
-labels[0:2,0:2] = False
-labels[3:5, 2:] = True
-
-index = np.unique(labels)
-
-print(ndimage.mean(a, labels=labels))
-
-#%%
-
-# Measuring pixel intensities
-
-img = io.imread(filename)
-
-# Incrementally label nuclei based on watershed 
-obj_labels = label(segmented_obj) 
-
-
-nuclei_number = [obj
-                 for obj in range(1, labs.max()+1)]
-
-# mean_intensity = [ndimage.mean(img, obj_labels == obj)
-#                   for obj in range(1, obj_labels.max()+1)]
-
-# total_intensity = [ndimage.sum(img, obj_labels == obj)
-#                    for obj in range(1, obj_labels.max()+1)]
-
-# area = [(obj_labels == obj).sum() 
-#           for obj in range(1, obj_labels.max()+1)] 
-
-# # sum_div_area is a test to ensure that mean is the total intensity in a object
-# # divided by the total number of pixels
-# sum_div_area = [ndimage.sum(img, obj_labels == obj) / (obj_labels == obj).sum()
-#                 for obj in range(1, obj_labels.max() + 1)]
-
-# # Create a list of lists for all data
-# data = [] 
-# data.append(nuclei_number)
-# data.append(mean_intensity)
-# data.append(total_intensity)
-# data.append(area)
-# data.append(sum_div_area)
-
-# # Declare column names, in order of list of list elements
-# cols = ['nuc_number', 'mean', 'total', 'area', 'sum_div_area']
-
-# # Transpose writes columns as rows 
-# # Since list of lists creates a len(list) wide df
-# df = pd.DataFrame.from_dict(data).transpose()
-# df.columns = cols
-# df[cols[0]] = df[cols[0]].astype(np.int64) # Remove trailing .0 added by pandas if ya want
+# Record_intensity spits out two lists, object number and the recorded mean
+# pixel intensity for those onjects in a given channel
 
 
 
+## Plan
+# Find length of input_image 3d array (that is, length of axis0)
+# for the first element of the input_images, find the corresponding nuclei_mask
+# iterate and record intensity for all channels using this mask
+# Consolidate intensity lists based on a match with object number
 
-#%%
+output_data = pd.DataFrame()
+
+
+for image_number, images in enumerate(input_images):
+    recorded_intensities = record_intensity(input_images[image_number], 
+                                                 split_nuclei[image_number], 
+                                                 ch_list)
+    
+    loop_data = pd.DataFrame(recorded_intensities).transpose()
+    
+    output_data = output_data.append(loop_data)
+    
+cols = ['nuclei_number'] + ['mean_'+i+'_intensity' for i in ch_list] + ['total_'+i+'_intensity' for i in ch_list]
+
+
+output_data.columns = cols
+
+output_data['nuclei_number'] = output_data['nuclei_number'].astype(np.int64)
+
+#%% Convert this function to collate all functions into one?
+
+def process_images(images, nuclei_masks, channels):
+    """
+    For a given 3d array of image data, record the mean and total intensities
+    for all given channels for objects defined by nuclei_masks
+    """
+    
+    # Empty DF to store output data
+    output_data = pd.DataFrame()
+    
+    for image_number, _ in enumerate(images):
+        recorded_intensities = record_intensity(images[image_number], 
+                                                nuclei_masks[image_number],
+                                                channels)
+        # Transpose data to convert to wide
+        loop_data = pd.DataFrame(recorded_intensities).transpose()
+        
+        # Append data for the given image
+        output_data = output_data.append(loop_data)
+        
+    # define and apply columns. First is always nuclei_number
+    # Generate mean/total columns depending on how many channels selected
+    cols = ['nuclei_number'] + ['mean_'+i+'_intensity' for i in ch_list] + ['total_'+i+'_intensity' for i in ch_list]
+    output_data.columns = cols
+    
+    # Remove trailing .0's from object number
+    output_data['nuclei_number'] = output_data['nuclei_number'].astype(np.int64)
+        
+    return output_data
+
+test1 = process_images(input_images, split_nuclei, ch_list)
+                                            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
