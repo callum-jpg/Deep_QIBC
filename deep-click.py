@@ -436,22 +436,6 @@ def file_group(filelist, non_group, group_size):
     Performs a fuzzy string match on a list.
     Strings are matched into lists of length group_size.
     Removes substrings, non_group, which are to be ignored for grouping.
-    
-    Parameters
-    ----------   
-    filelist : list
-        List of strings to be grouped
-    
-    non_group : list
-        List of strings found in filelist to not be used for matching
-        
-    group_size : int
-        Returning group size
-    
-    Returns
-    -------
-        out : nested list
-            A list of lists, with each sublist representing a group of matched strings
     """
     
     grouped_list = []
@@ -622,6 +606,7 @@ ax.axis('off')
 # Probably due to differences in neighbouring structure.
 # Was unable to find out which neighbouring array to use with skimage
 # to replicate ndimage.label labelling
+# Use skimage label to identify nuclei with connectivity = 2?
 
 t = [label(i, connectivity=2) for i in labs]
 
@@ -641,10 +626,15 @@ ax[1,1].imshow(label2rgb(t[0], bg_label=0))
 #%% Concatenate nuclei, label, then split
 # Maintains an increasing count of nuclei between images
 
+# First, identify nuclei
+labs = identify_nuclei(input_images, ch_list[0])
+
+# Then concatenate identified nuclei images
+# By concatenating them into a single array, ndimage.label will label 
 concat_nuclei = np.concatenate(labs)
 
 # np.ones((3, 3)) is the structure by which to categorise neighbours
-lab_nuc, nuc_number =  ndimage.label(test, np.ones((3,3)))
+lab_nuc, nuc_number =  ndimage.label(concat_nuclei, np.ones((3,3)))
 
 split_nuclei = np.split(lab_nuc, len(grouped_filelist), axis=0)
 
@@ -655,6 +645,19 @@ split_nuclei = np.split(lab_nuc, len(grouped_filelist), axis=0)
 # Alternaitvely
 # single_arr = split_test[0]
 # np.min(single_arr[np.nonzero(single_arr)])
+
+
+# The concatenate method has some flaws. Namely, it relies on an accurate split
+# If the split is wrong, subsequent analysis will fail.
+# Without concatenate, ndimage.label will count nuclei only in each individual image,
+# meaning that there will be multiple 1s, 2s, 3s, etc. 
+# However, as an alternative you could associate the labelled nuclei with
+# the image in which it was identified. That is, nuclei 1 in image 1, nuclei 2
+# in image 1. Then, accummulating nuclei numbers could be derived from this
+# ie, nuclei 1 in image 1 is the true first nuclei. Nuclei 1 in image 2 will be
+# (sum of image 1 nuclei + 1) etc. 
+# This system would therefore not rely on concatenate etc and keep maintain
+# the nuclei array as is
 
 #%%
 
@@ -699,12 +702,14 @@ def record_intensity(img, nuclei_mask, channels):
 
 what = record_intensity(input_images[0], split_nuclei[0], ch_list)
 
+
 #%% Working out how to record intensities 
 
 ## Notes/questions
 
 # How to link the nuclei mask to the corresponding imageset?
 ## Index alone will match
+## Add a check to make sure they're matched?
 
 # How to iterate through all channels for each image set?
 ## Read length of ch_list and iterate through 2d array
