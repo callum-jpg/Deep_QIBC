@@ -102,8 +102,16 @@ class LoadImages:
         for image_id, image_set in enumerate(self.image_info):
             for channel in self.channels:
                 open_path = os.path.join(image_set["path"], image_set[channel][0])
-                open_image = skimage.io.imread(open_path)
+                _open_image = skimage.io.imread(open_path)
+                # skimage.io.imread opens image as dtype uint16. While this
+                # works for nuclei detection, later visualisation of images 
+                # with matplotlib imshow requires unit8. img_as_ubyte converts
+                # to unit8 (will need further conversion from RGB to gray, though)
+                open_image = skimage.img_as_ubyte(_open_image)                
+                if open_image.ndim != 3: # Convert image to RGB if not already
+                    open_image = skimage.color.gray2rgb(open_image)
                 self.image_info[image_id][channel].append(open_image)
+                
                 
                 
     
@@ -121,4 +129,4 @@ images.load_images(image_dir)
 
 from sys import getsizeof
 
-print(getsizeof(images.image_info))
+#print(getsizeof(images.image_info))
