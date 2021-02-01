@@ -111,6 +111,7 @@ class LoadImages:
                 if open_image.ndim != 3: # Convert image to RGB if not already
                     open_image = skimage.color.gray2rgb(open_image)
                 self.image_info[image_id][channel].append(open_image)
+        return self.image_info
                 
                 
                 
