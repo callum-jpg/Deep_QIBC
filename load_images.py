@@ -1,6 +1,7 @@
 import os
 from difflib import get_close_matches
 import skimage.io
+import re
 
 class LoadImages:
     def __init__(self):
@@ -19,7 +20,7 @@ class LoadImages:
         return self.channels
     
     
-    def match_images(self, image_path):
+    def match_images1(self, image_path):
         """
         Performs a fuzzy string match on a filename list.
         Strings are matched into lists with the same length as self.channels.
@@ -55,7 +56,38 @@ class LoadImages:
             #return "Images inaccurately grouped"
             raise ValueError("Images unable to be accurately grouped")
         else:
+            print (self.grouped_images)
             return self.grouped_images
+        
+    def match_images(self, image_path, regex):
+        """
+        Matching based on a given regex
+        """
+        # Set path in which images are found
+        self.image_path = image_path
+        
+        filelist = os.listdir(image_path)
+        
+        unique = []
+        for i in filelist:
+            unique += re.findall(regex, i)
+        # Remove duplicates
+        unique = set(unique)
+        
+        self.grouped_images = []
+        # Iterate through unique identifiers,
+        # Find index of files which contain this identifer,
+        # Add these indexed filenames to sub_group as a list
+        # Append this sub_group list to grouped_images
+        for image_set in unique:
+            file_indices = [i for i, s in enumerate(filelist) if image_set in s]
+            sub_group = []
+            for idx in file_indices:
+                sub_group.append(filelist[idx])
+            self.grouped_images.append(sub_group)
+        return self.grouped_images
+        
+        
 
     def add_images(self):
         """
@@ -72,6 +104,7 @@ class LoadImages:
                     if channel in channel_img:
                         # Values in list so read img array can be appended
                         output_dict.update({channel: [channel_img]})
+                        #print(output_dict)
             return output_dict
         
         for image_id, image_set in enumerate(self.grouped_images):
@@ -93,13 +126,15 @@ class LoadImages:
         """
         
         # Perform grouping of images into image sets
-        self.match_images(image_path)
+        # TODO: Update so the regex isn't hard coded
+        self.match_images(image_path, "[^_]+$")
         
         # Build image_info dict
         self.add_images()
         
         # Load image information as np arrays to corresponding channel
         for image_id, image_set in enumerate(self.image_info):
+            #print(image_set)
             for channel in self.channels:
                 open_path = os.path.join(image_set["path"], image_set[channel][0])
                 _open_image = skimage.io.imread(open_path)
@@ -118,16 +153,16 @@ class LoadImages:
     
 #%% Testing
 
-images = LoadImages()
+# images = LoadImages()
 
-images.add_channels(["w1DAPI", "w2Cy5", "w3mCherry", "w4GFP"])
+# images.add_channels(["w1DAPI", "w2Cy5", "w3mCherry", "w4GFP"])
 
-image_dir = "images"
+# image_dir = "images"
 
-images.load_images(image_dir)
+# images.load_images(image_dir)
 
-#%% Get size of image_info in bytes
+# #%% Get size of image_info in bytes
 
-from sys import getsizeof
+# from sys import getsizeof
 
-#print(getsizeof(images.image_info))
+# #print(getsizeof(images.image_info))
