@@ -89,11 +89,12 @@ class ProcessMasks(object):
         return self.labelled_masks
 
 class RecordIntensity(object):
-    def __init__(self):
+    def __init__(self, image_info, channels, labelled_masks):
         self.x = []
-        self.image_info = images.image_info
-        self.masks = labelled.labelled_masks
-        self.data = []
+        self.image_info = image_info
+        self.channels = channels
+        self.masks = labelled_masks
+        
     def consolidate_masks_with_images(self, object_channel):
         """
         For masks identified by Mask R-CNN and labelled, consolidate
@@ -107,17 +108,13 @@ class RecordIntensity(object):
         images based on user preference. 
         """
         
-        for img in self.images:
+        for img in self.image_info:
             for mask in self.masks:
                 #print(mask['image name'])
                 if img[object_channel][0] == mask['image name']:
                     print("hit", mask['image name'])
                     img.update({'masks': mask['masks']})
-                    
-        
-        
-        
-        
+
     def record_intensity(self):
         """
         Record the intensity of the image within the given object mask. 
@@ -125,91 +122,138 @@ class RecordIntensity(object):
         
         img is a 2d array of a multichannel image
         """
+        
+        output_data = {'image number': [],
+                       'object number': []}
+        
+        # Build dictionary to store intensity values for each channel
+        output_data.update(("".join((channel, "_mean_intensity")), []) for channel in self.channels)
+        
+        output_data.update(("".join((channel, "_total_intensity")), []) for channel in self.channels)
+        
         for img in self.image_info:
+            masks = img['masks']
+            # Find the indices of non.zero numbers and use these
+            # indices to extract out non.zero values from original array
+            mask_min = np.min(masks[np.nonzero(masks)])
+            mask_max = np.max(masks[np.nonzero(masks)])
+            object_number = [obj for obj in range(mask_min, mask_max + 1)]                 
+            output_data['object number'] = output_data['object number'] + object_number
+            output_data['image number'] = output_data['image number'] + [img['image number']] * mask_max
             
-            # Convert image to grayscale
-            img_gray = skimage.color.rgb2gray(img['w1DAPI'][1])
-            
-            mask_min = np.min(img['masks'])
-            
-            mask_max = np.max(img['masks'])
-            
-            #print(mask_min, mask_max, img['image number'])
-            
-            # Append intensity to a list
-            
-            intensity = [ndimage.mean(img_gray, 
-                                      labels=(np.equal(img['masks'], obj)))
-                                          for obj in range(mask_min, mask_max + 1)]
-            
-             # intensity = [ndimage.mean(img['w1'], labels=(np.equal(nuclei_mask, obj)))
-             #                       for obj in range(mask_min, mask_max + 1)]
-            
-            print(len(intensity), mask_max + 1)
+            for channel in self.channels:
+                # Convert image array to grayscale
+                img_gray = skimage.color.rgb2gray(img[channel][1])
+                mean_intensity = [ndimage.mean(img_gray, 
+                                                  labels=(np.equal(img['masks'], obj)))
+                                                      for obj in object_number]
+                # Add recorded intensities to corresponding channel dict key
+                # CAN CHANGE THIS TO +=
+                output_data[channel+"_mean_intensity"] = output_data[channel+"_mean_intensity"] + mean_intensity                
+        
+                total_intensity = [ndimage.sum(img_gray, 
+                                                  labels=(np.equal(img['masks'], obj)))
+                                                      for obj in object_number]
+                # Add recorded intensities to corresponding channel dict key
+                output_data[channel+"_total_intensity"] = output_data[channel+"_total_intensity"] + total_intensity            
+        
+        return output_data
+
             
         
-#%% Testing
+# #%% Testing
 
 
-# Load images
-images = load_images.LoadImages()
+# # Load images
+# images = load_images.LoadImages()
 
-images.add_channels(["w1DAPI", "w2Cy5", "w3mCherry", "w4GFP"])
+# images.add_channels(["w1DAPI", "w2Cy5", "w3mCherry", "w4GFP"])
 
-image_dir = "images"
+# image_dir = "images"
 
-images.load_images(image_dir)
+# images.load_images(image_dir)
 
-# Run detection
-nuclei_detection = detect.DetectNucleus()
+# # Run detection
+# nuclei_detection = detect.DetectNucleus()
 
-# Select channel to run detection on (in this case, DAPI)
-object_channel = images.channels[0]
+# # Select channel to run detection on (in this case, DAPI)
+# object_channel = images.channels[0]
 
-nuclei_detection.run_detection(images.image_info, object_channel, "low", "cpu")
+# nuclei_detection.run_detection(images.image_info, object_channel, "low", "cpu")
 
-nuclei_detection.results
+# nuclei_detection.results
 
-#%%
-# Load and label masks
-labelled = ProcessMasks()
+# #%%
+# # Load and label masks
+# labelled = ProcessMasks()
 
-labelled.label_masks(nuclei_detection.results)
+# labelled.label_masks(nuclei_detection.results)
 
-labelled.labelled_masks[0]['masks'].max()
+# labelled.labelled_masks[0]['masks'].max()
 
-#%%
+# #%%
 
-intensity = RecordIntensity()
+# intensity = RecordIntensity()
 
-# Add itentified masks to image_info
-intensity.consolidate_masks_with_images(images.image_info, labelled.labelled_masks, 'w1DAPI')
+# # Add itentified masks to image_info
+# intensity.consolidate_masks_with_images('w1DAPI')
 
-#%%
+# #%%
 
-intensity = RecordIntensity()
+# intensity = RecordIntensity()
 
-intensity.record_intensity()
+# data = intensity.record_intensity()
+
+# #%%
+
+# import pandas as pd
+
+# df = pd.DataFrame(data=data)
+
+# df.to_csv('test.csv', index=False)
+
+# #%%
+
+# channels = images.channels
+
+# d = dict(((channel, 'hello'), []) for channel in channels)
+
+# da = {}
+
+# da.update(((channel, 'hello'), []) for channel in channels)
+
+# d.update({'test': 0})
+
+# d.update({channels[0]: [1, 2, 3]})
+
+# d[channels[0]] + [4, 5, 6]
+
+# d[channels[0]] = d[channels[0]] + [4, 5, 6]
+
+# #%%
+
+# for channel in channels:
+#     print(channel, 'hello')
 
 
-#%%
+# #%%
 
 
 
-from difflib import get_close_matches, SequenceMatcher
+# from difflib import get_close_matches, SequenceMatcher
 
-# From image_info access specific filename for a given channel
-img_str = images.image_info[0]['w1DAPI'][0]
+# # From image_info access specific filename for a given channel
+# img_str = images.image_info[0]['w1DAPI'][0]
 
-img_str1 = images.image_info[0]['w2Cy5'][0]
+# img_str1 = images.image_info[0]['w2Cy5'][0]
 
-img_str2 = images.image_info[1]['w2Cy5'][0]
+# img_str2 = images.image_info[1]['w2Cy5'][0]
 
-# For object masks, access filename with 
-mask_str = labelled.labelled_masks[0]['image name']
+# # For object masks, access filename with 
+# mask_str = labelled.labelled_masks[0]['image name']
 
 
-get_close_matches(word, possibilities)
+# get_close_matches(word, possibilities)
 
 
 
