@@ -16,21 +16,79 @@ sys.path.append(mrcnn_dir)
 import mrcnn.model as modellib
 import mrcnn.utils as utils
 import mrcnn.visualize as visualize
-from mrcnn import config
+from mrcnn.config import Config
 
 
 #%%
 
-class AdjustNucleusConfigHigh(config.Config):
-        GPU_COUNT = 1
-        IMAGES_PER_GPU = 1
-        # Min max not available with pad64
-        IMAGE_RESIZE_MODE = "pad64"
-        IMAGE_MIN_SCALE = 2
+class AdjustNucleusConfigHigh(Config):
+    """Configuration for training on the nucleus segmentation dataset.
+    Edited from Waleed's nucleus implementation of mask RCNN"""
+    # Give the configuration a recognizable name
+    NAME = "nucleus"
+
+    # Adjust depending on your GPU memory
+    GPU_COUNT = 1
+    IMAGES_PER_GPU = 1
+
+    # Number of classes (including background)
+    NUM_CLASSES = 1 + 1  # Background + nucleus
+
+    # Don't exclude based on confidence. Since we have two classes
+    # then 0.5 is the minimum anyway as it picks between nucleus and BG
+    DETECTION_MIN_CONFIDENCE = 0
+
+    # Backbone network architecture
+    # Supported values are: resnet50, resnet101
+    BACKBONE = "resnet50"
+
+    # Input image resizing
+    # Random crops of size 512x512
+    IMAGE_RESIZE_MODE = "square"
+    IMAGE_MIN_DIM = 512
+    IMAGE_MAX_DIM = 512
+    IMAGE_MIN_SCALE = 2.0
+
+    # Length of square anchor side in pixels
+    RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)
+
+    # ROIs kept after non-maximum supression (training and inference)
+    POST_NMS_ROIS_TRAINING = 1000
+    POST_NMS_ROIS_INFERENCE = 2000
+
+    # Non-max suppression threshold to filter RPN proposals.
+    # You can increase this during training to generate more propsals.
+    RPN_NMS_THRESHOLD = 0.9
+
+    # How many anchors per image to use for RPN training
+    RPN_TRAIN_ANCHORS_PER_IMAGE = 64
+
+    # Image mean (RGB)
+    MEAN_PIXEL = np.array([43.53, 39.56, 48.22])
+
+    # If enabled, resizes instance masks to a smaller size to reduce
+    # memory load. Recommended when using high-resolution images.
+    USE_MINI_MASK = True
+    MINI_MASK_SHAPE = (56, 56)  # (height, width) of the mini-mask
+
+    # Number of ROIs per image to feed to classifier/mask heads
+    # The Mask RCNN paper uses 512 but often the RPN doesn't generate
+    # enough positive proposals to fill this and keep a positive:negative
+    # ratio of 1:3. You can increase the number of proposals by adjusting
+    # the RPN NMS threshold.
+    TRAIN_ROIS_PER_IMAGE = 128
+
+    # Maximum number of ground truth instances to use in one image
+    MAX_GT_INSTANCES = 200
+
+    # Max number of final detections per image
+    DETECTION_MAX_INSTANCES = 400
+
 
 config = AdjustNucleusConfigHigh()
+#config = qibc_nucleus.NucleusInferenceConfig()
 
-
+#%
 img_dir = 'datasets/nucleus/label_test/'
 
 dataset = qibc_nucleus.NucleiDataset()
@@ -60,7 +118,22 @@ info = dataset.image_info[image_id]
 # GT masks load fine, but prediction isn't accurate. 
 # Moreover, the image loads weird too - perhaps due to RGB conversions
 
-#%% Exploring dataset
+# The above statements are false. Mistakes in resizing were due to "crop"
+# IMAGE_RESIZE_MODE being selected. 
+# The GT image 'looking weird' was due to shortened histogram. Consider
+# playing around with skimage.io stuff
+# 
+# However, this method leads to no object detection for some reason - why?
+# Testing with the DSB18 images works fine, though these were used to train
+# so probably not a good idea to use at all for this.
+# UPDATE: it seems to be something to do with image resolution. Perhaps 
+# due to the training taking place on 512x512 images, when a larger image, 
+# eg metamorph 1040x1392
+
+
+
+
+#% Exploring dataset
 
 mask, class_ids = dataset.load_mask(image_id)
 
@@ -68,7 +141,7 @@ dataset.load_mask
 
 test = dataset.load_image(image_id)
 
-#%%  Load model
+#%  Load model
 
 LOGS_DIR = os.path.join("logs")
 
@@ -137,21 +210,36 @@ visualize.display_differences(
 # gt_match is an array of indices for the matched predicted mask, as related
 # to the GT mask
 # pred_match is an array of the indices linking predicted masks to a GT mask
+# compare_matches also calculates overlaps following matching. overlaps.shape
+# is [predicted_nuclei, gt_nuclei]
 gt_match, pred_match, overlaps = utils.compute_matches(
     gt_bbox, gt_class_id, gt_mask,
     r['rois'], r['class_ids'], r['scores'], r['masks'],
     iou_threshold=0.5, score_threshold=0.5)
 
-captions = ["" for m in gt_match] + ["{:.2f} / {:.2f}".format(
-    r['scores'][i],
-    (overlaps[i, int(pred_match[i])]
-        if pred_match[i] > -1 else overlaps[i].max()))
-        for i in range(len(pred_match))]
+# Use compute_matches to get IoU, recall, precision etc. 
+
+# TODO: work out why the display_differences image looks strange. Get it to 
+# display in grayscale
 
 
 #%%
 
-test = skimage.io.imread(dataset.image_info[0]['path'])
+from skimage.color import rgb2gray
+
+gray_image = rgb2gray(image)
+
+visualize.display_differences(
+    gray_image,
+    gt_bbox, gt_class_id, gt_mask,
+    r['rois'], r['class_ids'], r['scores'], r['masks'],
+    dataset.class_names, ax=get_ax(),
+    show_box=False, show_mask=False,
+    iou_threshold=0.5, score_threshold=0.5)
+
+
+
+
 
 
 
