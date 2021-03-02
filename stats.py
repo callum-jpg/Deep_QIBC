@@ -18,6 +18,8 @@ import mrcnn.utils as utils
 import mrcnn.visualize as visualize
 from mrcnn.config import Config
 
+import skimage
+import cv2
 
 #%%
 
@@ -89,6 +91,7 @@ config = AdjustNucleusConfigHigh()
 #config = qibc_nucleus.NucleusInferenceConfig()
 
 #%
+# img_dir = 'datasets/nucleus/bw_train/'
 img_dir = 'datasets/nucleus/label_test/'
 
 dataset = qibc_nucleus.NucleiDataset()
@@ -223,20 +226,38 @@ gt_match, pred_match, overlaps = utils.compute_matches(
 # display in grayscale
 
 
+#%% Return the IoU values
+
+for i in overlaps:
+    for j in i:
+        if j != 0:
+            print(j)
+            
+#%% Convert image dtype to uint8
+
+out = np.zeros(image.shape, dtype=np.uint8)
+
+out = cv2.normalize(image, out, 0, 255, cv2.NORM_MINMAX)
+
+# Fixed! Converting the image to uint8 is the key! The strange gray 
+# image wasn't because of RGB or anything, but instead due to the 
+# metamorph image being uint16 rather than uint8
+
 #%%
 
-from skimage.color import rgb2gray
-
-gray_image = rgb2gray(image)
 
 visualize.display_differences(
-    gray_image,
+    out,
     gt_bbox, gt_class_id, gt_mask,
     r['rois'], r['class_ids'], r['scores'], r['masks'],
     dataset.class_names, ax=get_ax(),
     show_box=False, show_mask=False,
     iou_threshold=0.5, score_threshold=0.5)
 
+
+#%%
+
+plt.imshow(image, cmap='gray')
 
 
 
