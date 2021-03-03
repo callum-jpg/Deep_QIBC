@@ -47,8 +47,8 @@ class AdjustNucleusConfigHigh(Config):
     # Input image resizing
     # Random crops of size 512x512
     IMAGE_RESIZE_MODE = "square"
-    IMAGE_MIN_DIM = 512
-    IMAGE_MAX_DIM = 512
+    IMAGE_MIN_DIM = 1024
+    IMAGE_MAX_DIM = 1024
     IMAGE_MIN_SCALE = 2.0
 
     # Length of square anchor side in pixels
@@ -107,6 +107,15 @@ image_id = random.choice(dataset.image_ids)
 # calculated
 image, image_meta, gt_class_id, gt_bbox, gt_mask =\
     modellib.load_image_gt(dataset, config, image_id, use_mini_mask=False)
+    
+# Convert to 8-bit
+# Since model was trained on 8-bit DSB18 images but metamorph are 16-bit,
+# convert to 8-bit to improve score
+out = np.zeros(image.shape, dtype=np.uint8)
+
+out = cv2.normalize(image, out, 0, 255, cv2.NORM_MINMAX)
+
+image = out
     
 info = dataset.image_info[image_id]
 
@@ -178,7 +187,7 @@ def get_ax(rows=1, cols=1, size=16):
 
 #%%
 
-print("image ID: {}.{} ({}) {}".format(info["source"], info["id"], image_id, 
+print("imageID: {}.{} ({}) {}".format(info["source"], info["id"], image_id, 
                                        dataset.image_reference(image_id)))
 print("Original image shape: ", modellib.parse_image_meta(image_meta[np.newaxis,...])["original_image_shape"][0])
 
@@ -192,9 +201,14 @@ r = results[0]
 # log("gt_mask", gt_mask)
 
 # Compute AP over range 0.5 to 0.95 and print it
+# AP stands for average precision, as detailed here: https://cocodataset.org/#detection-eval
 utils.compute_ap_range(gt_bbox, gt_class_id, gt_mask,
                        r['rois'], r['class_ids'], r['scores'], r['masks'],
                        verbose=1)
+
+mAP, precisions, recalls, overlaps = utils.compute_ap(gt_bbox, gt_class_id, gt_mask,
+                 r['rois'], r['class_ids'], r['scores'], r['masks'])
+
 
 visualize.display_differences(
     image,
@@ -222,9 +236,44 @@ gt_match, pred_match, overlaps = utils.compute_matches(
 
 # Use compute_matches to get IoU, recall, precision etc. 
 
-# TODO: work out why the display_differences image looks strange. Get it to 
-# display in grayscale
+#%% Calculating F1 score
 
+# Total GT masks
+ground_truths = gt_match.shape[0]
+
+# Total identified masks
+predictions = pred_match.shape[0]
+
+# Max will return 0 if false positve is -ve. 
+false_pos = max(0, predictions - ground_truths)
+
+
+
+# Find the number of GT masks that have a predicted mask
+# aka true positive
+true_pos = np.where(gt_match > -1)[0].shape[0]
+
+# Precision: (true positive)/(true positive + false positive)
+precision = true_pos / (true_pos + false_pos)
+
+
+# Find the indices of GT masks with no prediction
+# aka false neg
+false_neg = np.where(gt_match < 0)[0].shape[0]
+
+# Recall: (true positive) / (true positive + false negative)
+recall = true_pos / (true_pos + false_neg)
+
+# F1: 2* (precision * recall) / (precision + recall)
+f1 = 2 * (precision * recall) / (precision + recall)
+
+# Mask rcnn stats:
+mAP, precisions, recalls, overlaps = utils.compute_ap(gt_bbox, gt_class_id, gt_mask,
+             r['rois'], r['class_ids'], r['scores'], r['masks'],
+             iou_threshold=0.5)
+
+# Total predictions that have a GT match / total number of predictions
+np.cumsum(pred_match > -1) / (np.arange(len(pred_match)) + 1)
 
 #%% Return the IoU values
 
@@ -255,9 +304,7 @@ visualize.display_differences(
     iou_threshold=0.5, score_threshold=0.5)
 
 
-#%%
 
-plt.imshow(image, cmap='gray')
 
 
 
