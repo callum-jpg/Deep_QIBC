@@ -21,6 +21,9 @@ from mrcnn.config import Config
 import skimage
 import cv2
 
+from detect import NUCLEUS_TRAINED_WEIGHTS, AdjustNucleusConfigLow, AdjustNucleusConfigMed, AdjustNucleusConfigHigh
+import load_images
+
 #%%
 
 class AdjustNucleusConfigHigh(Config):
@@ -236,45 +239,67 @@ gt_match, pred_match, overlaps = utils.compute_matches(
 
 # Use compute_matches to get IoU, recall, precision etc. 
 
-#%% Calculating F1 score
-
-# Total GT masks
-ground_truths = gt_match.shape[0]
-
-# Total identified masks
-predictions = pred_match.shape[0]
-
-# Max will return 0 if false positve is -ve. 
-false_pos = max(0, predictions - ground_truths)
-
-
-
-# Find the number of GT masks that have a predicted mask
-# aka true positive
-true_pos = np.where(gt_match > -1)[0].shape[0]
-
-# Precision: (true positive)/(true positive + false positive)
-precision = true_pos / (true_pos + false_pos)
-
-
-# Find the indices of GT masks with no prediction
-# aka false neg
-false_neg = np.where(gt_match < 0)[0].shape[0]
-
-# Recall: (true positive) / (true positive + false negative)
-recall = true_pos / (true_pos + false_neg)
-
-# F1: 2* (precision * recall) / (precision + recall)
-f1 = 2 * (precision * recall) / (precision + recall)
-
-# Mask rcnn stats:
+#%% Mask rcnn stats:
 mAP, precisions, recalls, overlaps = utils.compute_ap(gt_bbox, gt_class_id, gt_mask,
              r['rois'], r['class_ids'], r['scores'], r['masks'],
              iou_threshold=0.5)
 
 # Total predictions that have a GT match / total number of predictions
+# (pred_match > -1) returns T/F depending if there is a match to a GT mask.
+# This creates a bool array
+# np.cumsum then calculates the cumulative sum where true = 1 and false = 0
+# for the length of pred_match.
+#
+# (np.arange(len(pred_match)) + 1) then creates an array 
+# (+ 1 starts it from 1 rather than 0) for the length of predicted matches
+#
+# Then, by dividing these it yields a iterative calculation of precision.
+# The order of pred_match is from highest score to lowest (from compute_matches)
+# np.cumsum when encountering false will not increase, thus by being divided
+# by the steadily increasing np.arrange will lead to a value < 1.
+# eg. 3 / 3 = 1, but 2 / 3 = 0.66...
+# This solution from Mask R-CNN is beautiful and efficient
+
 np.cumsum(pred_match > -1) / (np.arange(len(pred_match)) + 1)
 
+#%% Calculating F1
+
+# For all of the predicted matches, find those that have a matched gt mask
+# and get the length of this array
+true_pos = np.where(pred_match > -1)[0].shape[0]
+
+# len(pred_match) is all of the predicted masks, positive and negative
+precision = true_pos / len(pred_match)
+
+# len(gt_match) is all of the true (+ve) and false (-ve) positives
+recall = true_pos / len(gt_match)
+
+# Calculate f1
+f1 = 2 * (precision * recall) / (precision + recall)
+
+
+def calculate_f1(gt_matches, pred_matches):
+    """
+    Calculates the F1 score given matches gt and predicted mask from Mask R-CNN output
+    """
+    
+    # For all of the predicted matches, find those that have a matched gt mask
+    # and get the length of this array
+    true_pos = np.where(pred_matches > -1)[0].shape[0]
+    
+    # len(pred_match) is all of the predicted masks, positive and negative
+    precision = true_pos / len(pred_match)
+    
+    # len(gt_match) is all of the true (+ve) and false (-ve) positives
+    recall = true_pos / len(gt_match)
+    
+    # Calculate f1
+    f1 = 2 * (precision * recall) / (precision + recall)
+    
+    return f1
+    
+    
+    
 #%% Return the IoU values
 
 for i in overlaps:
@@ -303,8 +328,142 @@ visualize.display_differences(
     show_box=False, show_mask=False,
     iou_threshold=0.5, score_threshold=0.5)
 
+#%%
+
+class CalculateStats:
+    def __init__(self):
+        # List to hold all of the gt images and masks
+        self.gt_info = []
+        self.gt_detection_info = []
+        self.config = []
+
+    def load_gt(self, img_dir, computation_requirement=None):
+        """
+        Load images and their masks together
+        """        
+        
+        # Load optional configs
+        if computation_requirement == "low":
+            print("Using low settings")
+            self.config = AdjustNucleusConfigLow()
+        if computation_requirement == "med":
+            print("Using medium settings")
+            self.config = AdjustNucleusConfigMed()
+        if computation_requirement == "high":
+            print("Using high settings")
+            self.config = AdjustNucleusConfigHigh()
+        # else:
+        #     print("Using low settings")
+        #     self.config = AdjustNucleusConfigLow()
+    
+        dataset = load_images.LoadImagesMasks()
+        dataset.load_nuclei(img_dir) 
+        dataset.prepare()
+        
+        for image_id in dataset.image_ids:
+            image, image_meta, gt_class_id, gt_bbox, gt_mask =\
+                        modellib.load_image_gt(dataset, self.config, image_id, use_mini_mask=False)
+                        
+            _gt_info = {"image": image,
+                       "image_meta": image_meta,
+                       "gt_class_id": gt_class_id,
+                       "gt_bbox": gt_bbox,
+                       "gt_mask": gt_mask}
+        
+            self.gt_info.append(_gt_info)
+        
+    def gt_detect(self, device=None):
+        """
+        Run detection on the images loaded by load_gt
+        """
+        
+        # Load preferred device
+        if device == "cpu":
+            DEVICE = "/cpu:0"
+        if device == "gpu":
+            DEVICE = "/GPU:0"
+        else:
+            DEVICE = "/cpu:0"
+            
+        # Start model in inference mode
+        with tf.device(DEVICE):
+            model = modellib.MaskRCNN(mode="inference",
+                              model_dir=LOGS_DIR,
+                              config=self.config)
+            
+        
+        print("Loading weights ", NUCLEUS_TRAINED_WEIGHTS)
+        model.load_weights(NUCLEUS_TRAINED_WEIGHTS, by_name=True)
+        
+        for gt in self.gt_info:
+            #print(gt)
+            results = model.detect_molded(np.expand_dims(gt["image"], 0), np.expand_dims(gt["image_meta"], 0), verbose=1)
+            
+            # Merge GT info and results into one dict
+            gt_and_detection = {**gt, **results[0]}
+            
+            self.gt_detection_info.append(gt_and_detection)
+            
+    def find_matches(self):
+        """
+        Find matches between gt masks and predicted masks. Minimum requirement
+        for a match is an IoU of 0.5.
+        """
+        
+        for i, gt in enumerate(self.gt_detection_info):
+        
+            gt_match, pred_match, overlaps = utils.compute_matches(
+                    gt["gt_bbox"], gt["gt_class_id"], gt["gt_mask"],
+                    gt['rois'], gt['class_ids'], gt['scores'], gt['masks'],
+                    iou_threshold=0.5, score_threshold=0.5)
+            
+            self.gt_detection_info[i].update({"gt_match": gt_match,
+                                              "pred_match": pred_match,
+                                              "overlaps": overlaps,
+                                              "f1": calculate_f1(gt_match, pred_match)})
+                       
 
 
+
+def calculate_f1(gt_matches, pred_matches):
+    """
+    Calculates the F1 score given matches gt and predicted mask from Mask R-CNN output
+    """
+    
+    # For all of the predicted matches, find those that have a matched gt mask
+    # and get the length of this array
+    true_pos = np.where(pred_matches > -1)[0].shape[0]
+    
+    # len(pred_match) is all of the predicted masks, positive and negative
+    precision = true_pos / len(pred_matches)
+    
+    # len(gt_match) is all of the true (+ve) and false (-ve) positives
+    recall = true_pos / len(gt_matches)
+    
+    # Calculate f1
+    f1 = 2 * (precision * recall) / (precision + recall)
+    
+    return f1
+            
+            
+        
+        
+        
+#%%
+
+test = CalculateStats()
+
+test.load_gt('datasets/nucleus/label_test/', computation_requirement="med")
+
+test.gt_detect()
+
+#%%
+
+test.find_matches()
+
+#%%
+
+test.gt_detection_info[1]['f1']
 
 
 
