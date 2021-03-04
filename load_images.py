@@ -2,6 +2,8 @@ import os
 from difflib import get_close_matches
 import skimage.io
 import re
+import numpy as np
+from mrcnn import utils
 
 class LoadImages:
     def __init__(self):
@@ -147,6 +149,62 @@ class LoadImages:
                     open_image = skimage.color.gray2rgb(open_image)
                 self.image_info[image_id][channel].append(open_image)
         return self.image_info
+
+
+class LoadImagesMasks(utils.Dataset):
+
+    def load_nuclei(self, dataset_dir):
+        """
+        Load images containing nuclei for model testing
+        """
+        # Define a new class, nucleus, which will be the name of identified masks
+        self.add_class("nucleus", 1, "nucleus")
+        
+        # os.walk is a generator which returns a tuple of values: (current_path, 
+        # directories in current_path, and files in current_path). os.walk recursively
+        # looks through all directories that are available in the parent. Therefore, it
+        # lists every file and folder.
+        # os.walk()[1] returns the all the directories in the dataset_dir,
+        # which in this case is a list of image names. 
+        imgs = next(os.walk(dataset_dir))[1]
+        
+        for img_id in imgs:
+            self.add_image(
+                "nucleus",
+                image_id=img_id,
+                path=os.path.join(dataset_dir, img_id, "images/{}.png".format(img_id))
+                )
+
+    def load_mask(self, image_id):
+        """
+        Load masks for the corresponding nuclei images
+        """
+        
+        info = self.image_info[image_id]
+        
+        # Specifically redirect to the masks subfolder
+        mask_dir = os.path.join(os.path.dirname(os.path.dirname(info['path'])), "masks")
+        
+        mask = []
+        # Open all masks.png images in mask directory and store in array
+        for file in next(os.walk(mask_dir))[2]:
+            if file.endswith(".png"):
+                # open and read the mask as a bool array
+                individual_mask = skimage.io.imread(os.path.join(mask_dir, file)).astype(np.bool)
+                # Add the opened mask to the mask list
+                mask.append(individual_mask)
+        
+        # Stack joins arrays along a new axis. Different to concatenate which joins
+        # them on the same axis
+        mask = np.stack(mask, axis=-1)
+
+        # Return the list of mask arrays and an array of class IDs. These are,
+        # all 1's for however many masks were identified. [-1] selects the last
+        # number in the shape 
+        return mask, np.ones([mask.shape[-1]], dtype=np.int32)
+    
+
+        
                 
                 
                 
