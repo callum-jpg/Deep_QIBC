@@ -21,12 +21,12 @@ from mrcnn.config import Config
 import skimage
 import cv2
 
-from detect import NUCLEUS_TRAINED_WEIGHTS, AdjustNucleusConfigLow, AdjustNucleusConfigMed, AdjustNucleusConfigHigh
+from detect import NUCLEUS_TRAINED_WEIGHTS, AdjustNucleusConfigLow, AdjustNucleusConfigMed, AdjustNucleusConfigHigh, LOGS_DIR
 import load_images
 
 #%%
 
-class AdjustNucleusConfigHigh(Config):
+class AdjustNucleusConfigHigh1(Config):
     """Configuration for training on the nucleus segmentation dataset.
     Edited from Waleed's nucleus implementation of mask RCNN"""
     # Give the configuration a recognizable name
@@ -90,7 +90,7 @@ class AdjustNucleusConfigHigh(Config):
     DETECTION_MAX_INSTANCES = 400
 
 
-config = AdjustNucleusConfigHigh()
+config = AdjustNucleusConfigHigh1()
 #config = qibc_nucleus.NucleusInferenceConfig()
 
 #%
@@ -101,7 +101,8 @@ dataset = qibc_nucleus.NucleiDataset()
 dataset.load_nuclei(img_dir) 
 dataset.prepare()
 
-image_id = random.choice(dataset.image_ids)
+# image_id = random.choice(dataset.image_ids)
+image_id = 1
 
 # You give the dataset object to load_image_gt. It is the load_image_gt
 # function which then runs dataset.load_mask to load all available masks
@@ -116,11 +117,10 @@ image, image_meta, gt_class_id, gt_bbox, gt_mask =\
 # convert to 8-bit to improve score
 out = np.zeros(image.shape, dtype=np.uint8)
 
-out = cv2.normalize(image, out, 0, 255, cv2.NORM_MINMAX)
-
-image = out
+image = cv2.normalize(image, out, 0, 255, cv2.NORM_MINMAX)
     
 info = dataset.image_info[image_id]
+
 
 # This doesn't seem to work for high resolution images
 # This is because load_image_gt resizes images and requries the input 
@@ -337,9 +337,9 @@ class CalculateStats:
         self.gt_detection_info = []
         self.config = []
 
-    def load_gt(self, img_dir, computation_requirement=None):
+    def load_gt(self, img_dir, computation_requirement=None,):
         """
-        Load images and their masks together
+        Load images and their masks together. Rescale images to 8-bit.
         """        
         
         # Load optional configs
@@ -349,6 +349,7 @@ class CalculateStats:
         if computation_requirement == "med":
             print("Using medium settings")
             self.config = AdjustNucleusConfigMed()
+            #self.config = AdjustNucleusConfigHigh1()
         if computation_requirement == "high":
             print("Using high settings")
             self.config = AdjustNucleusConfigHigh()
@@ -364,6 +365,11 @@ class CalculateStats:
             image, image_meta, gt_class_id, gt_bbox, gt_mask =\
                         modellib.load_image_gt(dataset, self.config, image_id, use_mini_mask=False)
                         
+            # Rescale to 8-bit
+            # Since model was trained on 8-bit DSB18 images
+            out = np.zeros(image.shape, dtype=np.uint8)
+            image = cv2.normalize(image, out, 0, 255, cv2.NORM_MINMAX)
+                        
             _gt_info = {"image": image,
                        "image_meta": image_meta,
                        "gt_class_id": gt_class_id,
@@ -371,11 +377,16 @@ class CalculateStats:
                        "gt_mask": gt_mask}
         
             self.gt_info.append(_gt_info)
+            
         
-    def gt_detect(self, device=None):
+    def gt_detect(self, img_dir, computation_requirement=None, device=None):
         """
-        Run detection on the images loaded by load_gt
+        Run detection on the images loaded by load_gt.
+        
+        Returns a list of dicts that contains image, predicted masks, gt masks
         """
+        
+        self.load_gt(img_dir, computation_requirement)
         
         # Load preferred device
         if device == "cpu":
@@ -404,10 +415,13 @@ class CalculateStats:
             
             self.gt_detection_info.append(gt_and_detection)
             
-    def find_matches(self):
+    def calculate_matches_and_f1(self, iou):
         """
-        Find matches between gt masks and predicted masks. Minimum requirement
-        for a match is an IoU of 0.5.
+        Find matches between gt masks and predicted masks. iou determines the
+        minimum threshold to determine a match. 
+        
+        Returns a list of dicts that contains image, predicted masks, gt masks,
+        their respective matches and f1 score.
         """
         
         for i, gt in enumerate(self.gt_detection_info):
@@ -415,14 +429,14 @@ class CalculateStats:
             gt_match, pred_match, overlaps = utils.compute_matches(
                     gt["gt_bbox"], gt["gt_class_id"], gt["gt_mask"],
                     gt['rois'], gt['class_ids'], gt['scores'], gt['masks'],
-                    iou_threshold=0.5, score_threshold=0.5)
+                    iou_threshold=iou, score_threshold=0.5)
             
+            # Add dict as an element in the gt_detection_info list
             self.gt_detection_info[i].update({"gt_match": gt_match,
                                               "pred_match": pred_match,
                                               "overlaps": overlaps,
                                               "f1": calculate_f1(gt_match, pred_match)})
                        
-
 
 
 def calculate_f1(gt_matches, pred_matches):
@@ -436,10 +450,10 @@ def calculate_f1(gt_matches, pred_matches):
     
     # len(pred_match) is all of the predicted masks, positive and negative
     precision = true_pos / len(pred_matches)
-    
+
     # len(gt_match) is all of the true (+ve) and false (-ve) positives
     recall = true_pos / len(gt_matches)
-    
+    print("Precision: {}. Recall: {}".format(precision, recall))    
     # Calculate f1
     f1 = 2 * (precision * recall) / (precision + recall)
     
@@ -453,23 +467,70 @@ def calculate_f1(gt_matches, pred_matches):
 
 test = CalculateStats()
 
-test.load_gt('datasets/nucleus/label_test/', computation_requirement="med")
-
-test.gt_detect()
+test.gt_detect('datasets/nucleus/label_test/', computation_requirement="med")
 
 #%%
 
-test.find_matches()
-
-#%%
+test.calculate_matches_and_f1(iou=0.1)
 
 test.gt_detection_info[1]['f1']
 
+#%% Extract IoU values for individual nuclei
+
+overlaps[np.where(overlaps!=0)]
+
+#%% Generating detection stats
+
+#np.linspace(0.5, 1, num=6)
+
+# Extract f1 scores for images over a range of IoU thresholds
+iou_levels = np.round(np.arange(0.1, 0.95, 0.05), 2)
+
+f1_scores = {}
+for iou_threshold in iou_levels:
+    f1_scores.update({"image_number": []})
+    
+    iou_key = ("f1_"+str(iou_threshold))
+    f1_scores.update({iou_key: []})
+    
+    test.calculate_matches_and_f1(iou=iou_threshold)
+    
+    for i, detection in enumerate(test.gt_detection_info):
+        f1_scores["image_number"].append(i + 1)
+        f1_scores[iou_key].append(detection['f1'])
+
+#%%
+
+# f1 score vs IoU
+# Compare low/med config
+y_values = [i[1] for i in list(f1_scores.values())[1:]]
+x_values = list(f1_scores.keys())[1:]
+
+fig, ax = plt.subplots(1, 1)
+ax.plot(x_values, y_values)
+ax.tick_params(axis='x', rotation=45)
+
+
+
+# Dot bar plot of f1 IoU for multiple images
+# Compare low/med config
+# Zoomed in images, 
 
 
 
 
 
+# Compare missed objects between detection methods
+
+
+# New stats as above, but on precision/recall?
+
+
+#%%
+
+
+    
+    
 
 
 
