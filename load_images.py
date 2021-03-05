@@ -4,6 +4,7 @@ import skimage.io
 import re
 import numpy as np
 from mrcnn import utils
+import cv2
 
 class LoadImages:
     def __init__(self):
@@ -144,7 +145,13 @@ class LoadImages:
                 # works for nuclei detection, later visualisation of images 
                 # with matplotlib imshow requires unit8. img_as_ubyte converts
                 # to unit8 (will need further conversion from RGB to gray, though)
-                open_image = skimage.img_as_ubyte(_open_image)                
+                open_image = skimage.img_as_ubyte(_open_image)
+                
+                # Rescale to 8-bit
+                # Since model was trained on 8-bit DSB18 images
+                out = np.zeros(open_image.shape, dtype=np.uint8)
+                open_image = cv2.normalize(open_image, out, 0, 255, cv2.NORM_MINMAX)                
+                
                 if open_image.ndim != 3: # Convert image to RGB if not already
                     open_image = skimage.color.gray2rgb(open_image)
                 self.image_info[image_id][channel].append(open_image)
