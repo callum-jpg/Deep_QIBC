@@ -4,7 +4,7 @@ import skimage.draw
 import json
 import numpy as np 
 import shutil
-from scipy import ndimage
+import skimage.morphology
 
 #%%
 
@@ -107,10 +107,9 @@ def extract_masks(mask_image):
             flat_array = flat_array + img[..., i]
     else:
         flat_array = img
-        
-    # Label the image
-    # [0] to extract labelled array
-    labs = ndimage.label(img)[0]
+    
+    # Label gt masks
+    labs = skimage.morphology.label(img)
     
     mask_min = np.min(labs[np.nonzero(labs)])
     mask_max = np.max(labs[np.nonzero(labs)])
@@ -118,9 +117,15 @@ def extract_masks(mask_image):
 
     for i in object_number:
         skimage.io.imsave("{}/{}_mask_{}.png".format(mask_dir, filename, i), np.equal(labs, i))  
-    
-    
 
+
+#%%
+
+
+
+img = "/home/think/Documents/deep-click/datasets/nucleus/stats_test/BBBC006/images+masks/mcf-z-stacks-03212011_a04_s1.png"
+
+img = skimage.io.imread(img)
     
     
     
