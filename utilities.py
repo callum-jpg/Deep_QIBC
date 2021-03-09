@@ -4,6 +4,8 @@ import skimage.draw
 import json
 import numpy as np 
 import shutil
+from scipy import ndimage
+
 #%%
 
 def json_to_png_mask(gt_image, json_masks):
@@ -65,9 +67,66 @@ def json_to_png_mask(gt_image, json_masks):
         skimage.io.imsave('{}/{}_mask_{}.png'.format(masks_dir, filename, i+1), mask)
         
     
-#%%
+# #%% Tests for json_to_png_mask()
 
-json_path = "datasets/nucleus/label_test/1111_annotations.json"
-img_path = "datasets/nucleus/label_test/1111.png"
+# json_path = "datasets/nucleus/label_test/1111_annotations.json"
+# img_path = "datasets/nucleus/label_test/1111.png"
 
-json_to_png_mask(img_path, json_path)
+# json_to_png_mask(img_path, json_path)
+
+# #%%
+
+# json_path = "datasets/nucleus/label_test/1111_full-labelling.json"
+# img_path = "datasets/nucleus/label_test/1111-full.png"
+
+# json_to_png_mask(img_path, json_path)
+
+def extract_masks(mask_image):
+    """
+    Identifies individual masks in a foreground/background image and extracts
+    masks into individual images, for each mask, into a mask directory    
+    """
+    
+    # Get the filename and remove the file extension
+    filename = os.path.basename(mask_image).split(".")[0]
+    
+    # Get the parent directory name
+    dir_name = os.path.dirname(mask_image) + os.path.sep
+    
+    # Make dir for images of masks
+    mask_dir = os.path.join(dir_name, filename, 'masks')
+    os.makedirs(mask_dir, exist_ok=True)
+    
+    img = skimage.io.imread(mask_image)
+    
+    # Flatten the array
+    if np.ndim(img) == 3:
+        flat_array = np.zeros(img.shape[0:2], dtype=np.int32)
+        for i in range(0, img.shape[2]):
+            # For each mask element, add to the 2d image array
+            flat_array = flat_array + img[..., i]
+    else:
+        flat_array = img
+        
+    # Label the image
+    # [0] to extract labelled array
+    labs = ndimage.label(img)[0]
+    
+    mask_min = np.min(labs[np.nonzero(labs)])
+    mask_max = np.max(labs[np.nonzero(labs)])
+    object_number = [obj for obj in range(mask_min, mask_max + 1)]  
+
+    for i in object_number:
+        skimage.io.imsave("{}/{}_mask_{}.png".format(mask_dir, filename, i), np.equal(labs, i))  
+    
+    
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
