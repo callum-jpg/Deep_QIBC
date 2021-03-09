@@ -28,6 +28,9 @@ class LoadImages:
         Performs a fuzzy string match on a filename list.
         Strings are matched into lists with the same length as self.channels.
         Removes channel strings from filename to aid in matching.
+        
+        This method doesn't work well and was replaced with match_images that 
+        relies on custom regex.
         """
         
         # Set path in which images are found
@@ -66,8 +69,6 @@ class LoadImages:
         """
         Matching based on a given regex
         """
-        # Set path in which images are found
-        self.image_path = image_path
         
         filelist = os.listdir(image_path)
         
@@ -88,33 +89,48 @@ class LoadImages:
             for idx in file_indices:
                 sub_group.append(filelist[idx])
             self.grouped_images.append(sub_group)
-        return self.grouped_images
-        
+        return self.grouped_images        
         
 
     def add_images(self):
         """
         Add grouped images to dict
         """
-        
-        def sort_images(image_set):
+
+        def sort_images(image_group):
             """
-            Arranges images as dict values with the corresponding channel as the key
+            Returns a dictionary that arranges image names in the dict values
+            with the corresponding cahnnel as the key.
+            
+            Image names are the first element in the list for a given key.
+            
+            Function is called in the following for loop. image_group is
+            the element of grouped_images. 
             """
+            
             output_dict = {}
-            for channel_img in image_set:
-                for channel in self.channels:
-                    if channel in channel_img:
-                        # Values in list so read img array can be appended
-                        output_dict.update({channel: [channel_img]})
-                        #print(output_dict)
+            for channel_img in image_group:
+                if len(self.channels) == 0:
+                    # No channel names given. Load single image
+                    output_dict.update({'image_data': [channel_img]})
+                else: 
+                    for channel in self.channels:
+                        if channel in channel_img:
+                            # Values in list so read img array can be appended
+                            output_dict.update({channel: [channel_img]})
+                            #print(output_dict)
+            
             return output_dict
         
+        # Iterate over all image groups and build a dict that contains
+        # image number, path, and each of the image channels with associated
+        # filename for a given image
         for image_id, image_set in enumerate(self.grouped_images):
             image_info = {}
             #print(image_set)
-            image_info.update({"image number": image_id+1,
-                               "path": self.image_path}) # Start at 1
+            image_info.update({"image number": image_id+1, # Start at 1
+                               "path": self.image_path})
+            
             image_info.update(sort_images(image_set))
             self.image_info.append(image_info)
             
@@ -128,18 +144,27 @@ class LoadImages:
             }]
         """
         
+        # Set path in which images are found
+        self.image_path = image_path
+        
         # Perform grouping of images into image sets
+        # If there are 2+ channels, perform grouping of image sets into a
+        # nested list
+        # Else, group the individual images into nested lists
         # TODO: Update so the regex isn't hard coded
-        self.match_images(image_path, "[^_]+$")
+        if len(self.channels) > 1:
+            self.match_images(image_path, "[^_]+$")
+        else:
+            self.grouped_images = [[i] for i in os.listdir(image_path)]
+            
         
         # Build image_info dict
         self.add_images()
         
         # Load image information as np arrays to corresponding channel
         for image_id, image_set in enumerate(self.image_info):
-            #print(image_set)
-            for channel in self.channels:
-                open_path = os.path.join(image_set["path"], image_set[channel][0])
+            if len(self.channels) == 0:
+                open_path = os.path.join(image_set["path"], image_set["image_data"][0])
                 _open_image = skimage.io.imread(open_path)
                 # skimage.io.imread opens image as dtype uint16. While this
                 # works for nuclei detection, later visualisation of images 
@@ -154,7 +179,28 @@ class LoadImages:
                 
                 if open_image.ndim != 3: # Convert image to RGB if not already
                     open_image = skimage.color.gray2rgb(open_image)
-                self.image_info[image_id][channel].append(open_image)
+                self.image_info[image_id]["image_data"].append(open_image)
+                
+                
+            else:
+                for channel in self.channels:
+                    open_path = os.path.join(image_set["path"], image_set[channel][0])
+                    _open_image = skimage.io.imread(open_path)
+                    # skimage.io.imread opens image as dtype uint16. While this
+                    # works for nuclei detection, later visualisation of images 
+                    # with matplotlib imshow requires unit8. img_as_ubyte converts
+                    # to unit8 (will need further conversion from RGB to gray, though)
+                    open_image = skimage.img_as_ubyte(_open_image)
+                    
+                    # Rescale to 8-bit
+                    # Since model was trained on 8-bit DSB18 images
+                    out = np.zeros(open_image.shape, dtype=np.uint8)
+                    open_image = cv2.normalize(open_image, out, 0, 255, cv2.NORM_MINMAX)                
+                    
+                    if open_image.ndim != 3: # Convert image to RGB if not already
+                        open_image = skimage.color.gray2rgb(open_image)
+                    self.image_info[image_id][channel].append(open_image)
+        
         return self.image_info
 
 

@@ -48,11 +48,16 @@ class AdjustNucleusConfigMed(nucleus.NucleusConfig):
         IMAGE_MAX_DIM = 1024       
         
 class AdjustNucleusConfigHigh(nucleus.NucleusConfig):
+    # High config doesn't seem to add much, if anything, above med. Delete?
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
-        # Min max not available with pad64
-        IMAGE_RESIZE_MODE = "pad64"
-        IMAGE_MIN_SCALE = 2
+        # # Min max not available with pad64
+        # IMAGE_RESIZE_MODE = "pad64"
+        # IMAGE_MIN_SCALE = 2
+        
+        IMAGE_RESIZE_MODE = "square"
+        IMAGE_MIN_DIM = 2048
+        IMAGE_MAX_DIM = 2048  
 
 
 class DetectNucleus:
@@ -63,8 +68,8 @@ class DetectNucleus:
         self.config_high = AdjustNucleusConfigHigh()
         self.results = []
         
-    def run_detection(self, images, object_channel, 
-                      computation_requirement=None, device=None):
+    def run_detection(self, images, computation_requirement="low", device="cpu",
+                      object_channel=None,):
         """
         Runs the Mask R-CNN model detection. Images is from images.image_info.
         
@@ -88,9 +93,6 @@ class DetectNucleus:
         if computation_requirement == "high":
             print("Using high settings")
             config = self.config_high
-        else:
-            print("Using low settings")
-            config = self.config_low
 
         # Load preferred device
         if device == "cpu":
@@ -99,6 +101,10 @@ class DetectNucleus:
             DEVICE = "/GPU:0"
         else:
             DEVICE = "/cpu:0"
+            
+        if object_channel is None:
+            print("No object channel given. Using default.")
+            object_channel = "image_data"
             
             
         with tf.device(DEVICE): 
@@ -119,7 +125,7 @@ class DetectNucleus:
             
         print("--- {} seconds ---".format(time.time() - start_time))
 
-    
+ 
 
 # #%%
 
