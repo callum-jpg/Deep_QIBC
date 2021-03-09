@@ -89,13 +89,16 @@ class ProcessMasks(object):
         return self.labelled_masks
 
 class RecordIntensity(object):
-    def __init__(self, image_info, channels, labelled_masks):
+    def __init__(self, image_info, labelled_masks, channels=None):
         self.x = []
         self.image_info = image_info
-        self.channels = channels
         self.masks = labelled_masks
+        if channels is None:
+            self.channels = ["image_data"]
+        else:
+            self.channels = channels
         
-    def consolidate_masks_with_images(self, object_channel):
+    def consolidate_masks_with_images(self, object_channel=None):
         """
         For masks identified by Mask R-CNN and labelled, consolidate
         these masks with the appropriate image set based on filename.
@@ -107,6 +110,10 @@ class RecordIntensity(object):
         grouping option into the load_images module that can reliably group
         images based on user preference. 
         """
+        
+        if object_channel is None:
+            print("No object channel provided. Continuing with default.")
+            object_channel = "image_data"
         
         for img in self.image_info:
             for mask in self.masks:
