@@ -467,7 +467,7 @@ def calculate_f1(gt_matches, pred_matches):
 
 test = CalculateStats()
 
-test.gt_detect('datasets/nucleus/label_test/', computation_requirement="med")
+test.gt_detect('datasets/nucleus/label_test/', computation_requirement="low")
 
 #%%
 
@@ -477,6 +477,8 @@ test.gt_detection_info[1]['f1']
 
 #%% Extract IoU values for individual nuclei
 
+overlaps = test.gt_detection_info[0]['overlaps']
+
 overlaps[np.where(overlaps!=0)]
 
 #%% Generating detection stats
@@ -484,6 +486,7 @@ overlaps[np.where(overlaps!=0)]
 #np.linspace(0.5, 1, num=6)
 
 # Extract f1 scores for images over a range of IoU thresholds
+# 0.1 to 0.9
 iou_levels = np.round(np.arange(0.1, 0.95, 0.05), 2)
 
 f1_scores = {}
@@ -503,12 +506,14 @@ for iou_threshold in iou_levels:
 
 # f1 score vs IoU
 # Compare low/med config
-y_values = [i[1] for i in list(f1_scores.values())[1:]]
+# i[1] to extract the second image f1_scores
+y_values = [i[0] for i in list(f1_scores.values())[1:]]
+# [1:] to ignore the first key, which is image_number
 x_values = list(f1_scores.keys())[1:]
 
 fig, ax = plt.subplots(1, 1)
-ax.plot(x_values, y_values)
-ax.tick_params(axis='x', rotation=45)
+ax.plot(x_values, y_values, marker="o")
+ax.set_xticklabels(labels=x_values, rotation=45, ha="right", rotation_mode="anchor")
 
 
 
