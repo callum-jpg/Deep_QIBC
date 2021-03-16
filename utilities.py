@@ -69,12 +69,12 @@ def json_to_png_mask(gt_image, json_masks):
     
 # #%% Tests for json_to_png_mask()
 
-# json_path = "datasets/nucleus/label_test/1111_annotations.json"
-# img_path = "datasets/nucleus/label_test/1111.png"
+# json_path = "/home/think/Documents/deep-click/datasets/nucleus/stats_images/BBBC006-oof-u2os/images+masks/labelled_nuclei at z16.json"
+# img_path = "/home/think/Documents/deep-click/datasets/nucleus/stats_images/BBBC006-oof-u2os/images+masks/oof-u2os.png"
 
 # json_to_png_mask(img_path, json_path)
 
-# #%%
+#%%
 
 # json_path = "datasets/nucleus/label_test/1111_full-labelling.json"
 # img_path = "datasets/nucleus/label_test/1111-full.png"
@@ -97,8 +97,9 @@ def extract_masks(mask_image):
     mask_dir = os.path.join(dir_name, filename, 'masks')
     os.makedirs(mask_dir, exist_ok=True)
     
+    # Open image
     img = skimage.io.imread(mask_image)
-    
+
     # Flatten the array
     if np.ndim(img) == 3:
         flat_array = np.zeros(img.shape[0:2], dtype=np.int32)
@@ -119,19 +120,40 @@ def extract_masks(mask_image):
         skimage.io.imsave("{}/{}_mask_{}.png".format(mask_dir, filename, i), np.equal(labs, i))  
 
 
-#%%
 
+#%% Find and convert .tif files to .png
 
+def get_filenames(directory):
+    """
+    For a given directory, find the filenames for files within subdirectories.
+    """
+    
+    file_list = []
+    # os.walk generator returns the path of the directories found, their names,
+    # and all of the files found in the root and directories
+    # 
+    for (dir_path, dir_names, filenames) in os.walk(directory):
+        file_list += [os.path.join(dir_path, file) for file in filenames]
+        
+    return file_list
 
-img = "/home/think/Documents/deep-click/datasets/nucleus/stats_test/BBBC006/images+masks/mcf-z-stacks-03212011_a04_s1.png"
+def tif_to_png(directory):
+    """
+    Scans a given directory and creates a copy of any tif images in the png
+    format
+    """
+    
+    filenames = get_filenames(directory)
+    
+    tif_files = [img for img in filenames if ".tif" in img]
+    
+    for tif_img in tif_files:
+        path = os.path.dirname(tif_img)
+        filename = os.path.basename(tif_img).split(".")[0]
+        save_path = os.path.join(path, filename+".png")
+        
+        _img = skimage.io.imread(tif_img)
+        skimage.io.imsave(save_path, _img)
+        
 
-img = skimage.io.imread(img)
-    
-    
-    
-    
-    
-    
-    
-    
     
