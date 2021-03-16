@@ -30,6 +30,8 @@ class AdjustNucleusConfigLow(nucleus.NucleusConfig):
         # Set batch size to 1 to run one image at a time
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
+        # Smaller number = less overlaps
+        RPN_NMS_THRESHOLD = 0.7
         # "square" resizes image into a square image with dimensions
         # [IMAGE_MIN_DIM, IMAGE_MAX_DIM], with the shorter side padded up with zeros
         # This allows for the computational load to be reduced by making the images smaller
@@ -43,6 +45,8 @@ class AdjustNucleusConfigLow(nucleus.NucleusConfig):
 class AdjustNucleusConfigMed(nucleus.NucleusConfig):
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
+        # Smaller number = less overlaps
+        RPN_NMS_THRESHOLD = 0.7
         IMAGE_RESIZE_MODE = "square"
         IMAGE_MIN_DIM = 1024
         IMAGE_MAX_DIM = 1024       
@@ -51,9 +55,9 @@ class AdjustNucleusConfigHigh(nucleus.NucleusConfig):
     # High config doesn't seem to add much, if anything, above med. Delete?
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
-        # # Min max not available with pad64
-        # IMAGE_RESIZE_MODE = "pad64"
-        # IMAGE_MIN_SCALE = 2
+        # Smaller number = less overlaps
+        RPN_NMS_THRESHOLD = 0.5
+        
         
         IMAGE_RESIZE_MODE = "square"
         IMAGE_MIN_DIM = 2048
