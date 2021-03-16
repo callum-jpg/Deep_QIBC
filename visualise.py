@@ -39,14 +39,23 @@ def display_detections(detection_output):
     if stats:
         ax[2].imshow(display_difference(input_image, gt_masks, pred_masks))
         ax[2].axis("off")
-        ax[2].set_title("""Ground truth vs. predicted masks\n
-                        Green = positive overlap, red = miss\n
-                        F1 score: {}""".format(round(detection_output["f1"], 3)))
+        # I don't like how this triple quote looks, but it's how to make it
+        # align above the plot correctly
+        ax[2].set_title("""
+Ground truth vs. predicted masks
+Green = True positve, red = True negative, 
+blue = False positive
+Precision: {}, Recall: {}.
+F1@0.7 IoU score: {}""".format(round(detection_output["precision"], 3),
+                       round(detection_output["recall"], 3),
+                       round(detection_output["f1"], 3)))
         #fig.suptitle("Image F1 score: {}".format(detection_output["f1"]))
     fig.tight_layout()
     
-display_detections(res) 
-fig.savefig("test.png", dpi=300, bbox_inches='tight')   
+    return fig
+    
+#display_detections(res) 
+#fig.savefig("test.png", dpi=300, bbox_inches='tight')   
     
 
 
@@ -99,8 +108,6 @@ def apply_mask(image, mask, colour):
         
     return image
 
-#%%
-
 def colour_masks(image, pred_masks):
     """
     Generates an image with coloured masks applied
@@ -127,13 +134,88 @@ def colour_masks(image, pred_masks):
 # fig, ax = plt.subplots(1, 1)
 # ax.imshow(test)
 
-
-#%% Display differences?
-
 def display_difference(image, gt_masks, pred_masks):
     """
     Return an image that shows areas predicted corrently (green) and areas
     missed (red)
+    """
+    
+    # Create an empty array, ready to be coloured, with input image shape
+    img = np.zeros(image.shape, dtype=np.uint8)
+
+    # Red will mark unmatched GT and green will match where GT overlaps
+    # with prediction
+    # Blue will mark areas that were predicted, but are not present in the 
+    # GT 
+    red = (255, 0, 0)
+    green = (0, 255, 0)
+    blue = (0, 0, 255)
+
+    # Flatten masks into 2d array depicting area which contains a mask
+    # Resolution of overlapping masks is lost    
+    gt = flatten_masks(gt_masks)
+    pred = flatten_masks(pred_masks)
+    
+    # True positive overlaps
+    # Green
+    tp_overlaps = np.where((gt == 1) & (pred == 1), 1, np.zeros(gt.shape))
+    
+    # False negative overlaps
+    # Red
+    fn_overlaps = np.where((gt == 1) & (pred == 0), 1, np.zeros(gt.shape))
+    
+    # False positive overlaps
+    # Blue
+    fp_overlaps = np.where((gt == 0) & (pred == 1), 1, np.zeros(gt.shape))
+    
+    for channel in range(3):
+        img[:,:,channel] = np.where(tp_overlaps == 1, green[channel], img[:,:,channel])
+        img[:,:,channel] = np.where(fn_overlaps == 1, red[channel], img[:,:,channel])
+        img[:,:,channel] = np.where(fp_overlaps == 1, blue[channel], img[:,:,channel])
+    
+    return img
+
+# fig, ax = plt.subplots(1, 1)            
+# ax.imshow(display_difference1(res["image"], res["gt_mask"], res["masks"]))
+
+
+def flatten_masks(array):
+    """
+    'Flattens' a 3d array to 2d along k. For merging mask information
+    found in k layers for an i, j dims image array.
+    
+    This function also ignores any overlapping objects
+    """
+    # Create an empty array of the input image shape
+    flat_array = np.zeros(array.shape[0:2], dtype=np.int32)
+
+    for i in range(0, array.shape[2]):
+        # For each mask element, add to the 2d image array
+        flat_array = flat_array + array[..., i]
+    
+    # Overlaps will return True + True = 2 in the above loop and np.where
+    # equates them to 1. Thus, resolution of overlapping masks is lost 
+    # by this function. 
+    flat_array = np.where(flat_array > 1, 1, flat_array)
+
+    return flat_array
+
+
+#%% 
+
+def display_difference1(image, gt_masks, pred_masks):
+    """
+    Return an image that shows areas predicted corrently (green) and areas
+    missed (red)
+    
+    Old function, doesn't colour accurately:
+    # When iterating through the channels and checking if the 
+    # pixel looks like red[c], technically ALL pixels look like
+    # red (thus True) when in channels 1:2.
+    # This leads to pixels being coloured green despite no
+    # gt_mask match at that position. This is also why some
+    # pixels return yellow. Find a better way of matching 
+    # pred to gt rather than just rgb colours. 
     """
     
     # Create an empty array, ready to be coloured, with input image shape
@@ -198,6 +280,7 @@ def display_difference(image, gt_masks, pred_masks):
     return img
         
     
-fig, ax = plt.subplots(1, 1)            
-ax.imshow(display_difference(res["image"], res["gt_mask"], res["masks"]))
+# fig, ax = plt.subplots(1, 1)            
+# ax.imshow(display_difference(res["image"], res["gt_mask"], res["masks"]))
+
 
