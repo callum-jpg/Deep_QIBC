@@ -243,7 +243,8 @@ class LoadImagesMasks(utils.Dataset):
         for file in next(os.walk(mask_dir))[2]:
             if file.endswith(".png"):
                 # open and read the mask as a bool array
-                individual_mask = skimage.io.imread(os.path.join(mask_dir, file)).astype(np.bool)
+                # as_gray to make sure it's a 1 channel image
+                individual_mask = skimage.io.imread(os.path.join(mask_dir, file), as_gray=True).astype(np.bool)
                 # Add the opened mask to the mask list
                 mask.append(individual_mask)
         
