@@ -21,12 +21,16 @@ def display_detections(detection_output):
     gt_masks = detection_output["gt_mask"].copy()
     
     # Display stats?
-    if "f1" in detection_output.keys():
-        stats = True
+    if "f10.7" in detection_output.keys():
+        plot_stats = True
+    else: 
+        plot_stats = False
+        
+    
     
     # height, width = input_image.shape[:2]
     
-    fig, ax = plt.subplots(1, 3 if stats else 2, figsize=(15, 20))
+    fig, ax = plt.subplots(1, 3 if plot_stats else 2, figsize=(15, 20))
     
     ax[0].imshow(input_image)
     ax[0].axis('off')
@@ -36,7 +40,7 @@ def display_detections(detection_output):
     ax[1].axis('off')
     ax[1].set_title("Predicted masks")
     
-    if stats:
+    if plot_stats:
         ax[2].imshow(display_difference(input_image, gt_masks, pred_masks))
         ax[2].axis("off")
         # I don't like how this triple quote looks, but it's how to make it
@@ -48,7 +52,7 @@ blue = False positive
 Precision: {}, Recall: {}.
 F1@0.7 IoU score: {}""".format(round(detection_output["precision"], 3),
                        round(detection_output["recall"], 3),
-                       round(detection_output["f1"], 3)))
+                       round(detection_output["f10.7"], 3)))
         #fig.suptitle("Image F1 score: {}".format(detection_output["f1"]))
     fig.tight_layout()
     
