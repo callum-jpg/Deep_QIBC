@@ -7,6 +7,7 @@ import tensorflow as tf
 import qibc_nucleus
 import random
 import numpy as np
+import pandas as pd
 import os
 import sys
 import matplotlib.pyplot as plt
@@ -58,17 +59,15 @@ class CalculateStats:
         dataset = load_images.LoadImagesMasks()
         dataset.load_nuclei(img_dir) 
         dataset.prepare()
-        
+        #print(dataset.image_ids)
+        #print(dataset.image_info)
+                
         for image_id in dataset.image_ids:
             image, image_meta, gt_class_id, gt_bbox, gt_mask =\
                         modellib.load_image_gt(dataset, self.config, image_id, use_mini_mask=False)
-                        
-            # Rescale to 8-bit
-            # Since model was trained on 8-bit DSB18 images
-            # out = np.zeros(image.shape, dtype=np.uint8)
-            # image = cv2.normalize(image, out, 0, 255, cv2.NORM_MINMAX)
-                        
+            
             _gt_info = {"image": image,
+                        "image_name": dataset.image_info[image_id]["id"],
                        "image_meta": image_meta,
                        "gt_class_id": gt_class_id,
                        "gt_bbox": gt_bbox,
@@ -113,7 +112,7 @@ class CalculateStats:
             
             self.gt_detection_info.append(gt_and_detection)
             
-    def calculate_matches_and_f1(self, iou_level):
+    def calculate_matches_and_f1(self, iou_levels):
         """
         Find matches between gt masks and predicted masks. iou_level determines the
         minimum threshold to determine a match. 
@@ -122,21 +121,23 @@ class CalculateStats:
         their respective matches and f1 score.
         """
         
-        for i, gt in enumerate(self.gt_detection_info):
-        
-            gt_match, pred_match, overlaps = utils.compute_matches(
-                    gt["gt_bbox"], gt["gt_class_id"], gt["gt_mask"],
-                    gt['rois'], gt['class_ids'], gt['scores'], gt['masks'],
-                    iou_threshold=iou_level, score_threshold=0.5)
+        for iou_threshold in iou_levels:
+            for i, gt in enumerate(self.gt_detection_info):
             
-            # Add dict as an element in the gt_detection_info list
-            self.gt_detection_info[i].update({"gt_match": gt_match,
-                                              "pred_match": pred_match,
-                                              "overlaps": overlaps,
-                                              "f1": calculate_f1(gt_match, pred_match)[0],
-                                              "precision": calculate_f1(gt_match, pred_match)[1],
-                                              "recall": calculate_f1(gt_match, pred_match)[2]})
-                       
+                gt_match, pred_match, overlaps = utils.compute_matches(
+                        gt["gt_bbox"], gt["gt_class_id"], gt["gt_mask"],
+                        gt['rois'], gt['class_ids'], gt['scores'], gt['masks'],
+                        iou_threshold=iou_threshold, score_threshold=0.5)
+                
+                # Add dict as an element in the gt_detection_info list
+                self.gt_detection_info[i].update({"gt_match": gt_match,
+                                                  "pred_match": pred_match,
+                                                  "overlaps": overlaps,
+                                                  "f1"+str(iou_threshold): calculate_f1(gt_match, pred_match)[0],
+                                                  #"f1": calculate_f1(gt_match, pred_match)[0],
+                                                  "precision": calculate_f1(gt_match, pred_match)[1],
+                                                  "recall": calculate_f1(gt_match, pred_match)[2]})
+                                   
 
 
 def calculate_f1(gt_matches, pred_matches):
@@ -149,13 +150,22 @@ def calculate_f1(gt_matches, pred_matches):
     true_pos = np.where(pred_matches > -1)[0].shape[0]
     
     # len(pred_match) is all of the predicted masks, positive and negative
-    precision = true_pos / len(pred_matches)
+    try: 
+        precision = true_pos / len(pred_matches)
+    except ZeroDivisionError:
+         precision = 0
 
     # len(gt_match) is all of the true (+ve) and false (-ve) positives
-    recall = true_pos / len(gt_matches)
+    try:
+        recall = true_pos / len(gt_matches)
+    except ZeroDivisionError:
+        recall = 0
         
     # Calculate f1
-    f1 = 2 * (precision * recall) / (precision + recall)
+    if precision != 0 and recall != 0:
+        f1 = 2 * (precision * recall) / (precision + recall)
+    else: 
+        f1 = 0
     
     return f1, precision, recall
             
@@ -260,8 +270,8 @@ for i in setting:
     fig = visualise.display_detections(res)
     fig.savefig(i+" masks for small overlaps.png", dpi=300, bbox_inches='tight')
     
-#%%
-# Colours for plotting. From Solarized palette
+#%% Colours for plotting. From Solarized palette
+
 colour_palette = [(42, 161, 152), (38, 139, 210), (108, 113, 196), (211, 54, 130)]
 plot_colours = colour_palette
 for i in range(len(colour_palette)):
@@ -269,7 +279,7 @@ for i in range(len(colour_palette)):
 	# Convert RGB (0, 255) to (0, 1) which matplotlib likes
 	plot_colours[i] = (r / 255, g / 255, b / 255)
     
-#%% IoU threshold F1 scores for small overlaps
+#%% IoU threshold F1 scores for small overlap images
 
 
 # img_dir = "/home/think/Documents/deep-click/datasets/nucleus/stats_images/u2os-20x"
@@ -322,9 +332,77 @@ fig.tight_layout()
 fig.savefig("low vs med for small overlaps.png", dpi=300, bbox_inches='tight')
     
     
+#%% IoU threshold F1 scores for oof U2OS images
 
-    
-    
+img_dir = "/home/think/Documents/deep-click/datasets/nucleus/stats_images/BBBC006-oof-u2os/images+masks/oof-images"
 
+# Extract f1 scores for images over a range of IoU thresholds
+# 0.1 to 0.9
+iou_levels = np.round(np.arange(0.5, 0.95, 0.05), 2)
+
+# Multiple focus images
+subfolders = next(os.walk(img_dir))[1]
+
+# Create
+f1_scores = {"setting": [],
+             "image_name": []}
+f1_scores.update({"f1"+str(k): [] for k in iou_levels})
+
+setting = ["low", "med"]
+#setting = ["low"]
+
+for j in setting:
+    stats = CalculateStats()
+    stats.gt_detect(img_dir, j)
+
+    stats.calculate_matches_and_f1(iou_levels=iou_levels)
+        
+    for detection in stats.gt_detection_info:
+        for iou in iou_levels:
+            f1_scores["f1"+str(iou)].append(detection["f1"+str(iou)])
+    
+    for img in stats.gt_detection_info:
+        f1_scores["image_name"].append(img["image_name"])
+        # Ensure len setting is equal to the images loaded
+        f1_scores["setting"].append(j)
+        
+        # Plot differences
+        fig = visualise.display_detections(img)
+        fig.savefig(img["image_name"]+" "+j+" masks for small overlaps.png", dpi=300, bbox_inches='tight')
+            
+#%% Use pandas for easier subsetting of data based on image name etc.
+
+df = pd.DataFrame(f1_scores)
+
+subset_df = df[((df["image_name"] == "oof-16um") 
+               | (df["image_name"] == "oof-0um"))
+               & (df["setting"] == "med")]
+
+#%%
+
+
+
+# f1 score vs IoU
+# Compare low/med config
+# i[0] to extract the second image f1_scores
+y_0um = [i[2] for i in list(f1_scores.values())[2:]]
+y_16um = [i[0] for i in list(f1_scores.values())[2:]]
+# [2:] to ignore the first key, which is setting
+x_values = [i[2:] for i in list(f1_scores.keys())[2:]]
+
+
+#%%
+
+fig, ax = plt.subplots(1, 1, figsize=(6, 3))
+ax.plot(x_values, y_0um, marker="o", color=plot_colours[3])
+ax.plot(x_values, y_16um, marker="o", color=plot_colours[1])
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
+ax.set_xlabel("IoU Threshold")
+ax.set_ylabel("F1 Score")
+ax.legend(["0um", "16um"])
+fig.tight_layout()
+fig.savefig("low vs med for small overlaps.png", dpi=300, bbox_inches='tight')
+    
 
 
