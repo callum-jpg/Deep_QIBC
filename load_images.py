@@ -3,8 +3,12 @@ from difflib import get_close_matches
 import skimage.io
 import re
 import numpy as np
-from mrcnn import utils
 import cv2
+import sys
+
+mrcnn_dir = os.path.abspath("Mask_RCNN")
+sys.path.append(mrcnn_dir)
+from mrcnn import utils
 
 class LoadImages:
     def __init__(self):
@@ -212,7 +216,7 @@ class LoadImagesMasks(utils.Dataset):
         """
         # Define a new class, nucleus, which will be the name of identified masks
         self.add_class("nucleus", 1, "nucleus")
-        
+
         # os.walk is a generator which returns a tuple of values: (current_path, 
         # directories in current_path, and files in current_path). os.walk recursively
         # looks through all directories that are available in the parent. Therefore, it
@@ -220,8 +224,9 @@ class LoadImagesMasks(utils.Dataset):
         # os.walk()[1] returns the all the directories in the dataset_dir,
         # which in this case is a list of image names. 
         imgs = next(os.walk(dataset_dir))[1]
-        
+
         for img_id in imgs:
+            #print(img_id)
             self.add_image(
                 "nucleus",
                 image_id=img_id,
