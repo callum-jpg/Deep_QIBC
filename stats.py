@@ -2,8 +2,6 @@
 
 #%% Calculating IoU
 
-import tensorflow as tf
-
 import qibc_nucleus
 import random
 import numpy as np
@@ -12,6 +10,9 @@ import os
 import sys
 import matplotlib.pyplot as plt
 import time
+import skimage
+import cv2
+import tensorflow as tf
 
 mrcnn_dir = os.path.abspath("Mask_RCNN")
 sys.path.append(mrcnn_dir)
@@ -19,9 +20,6 @@ import mrcnn.model as modellib
 import mrcnn.utils as utils
 import mrcnn.visualize as visualize
 from mrcnn.config import Config
-
-import skimage
-import cv2
 
 from detect import NUCLEUS_TRAINED_WEIGHTS, AdjustNucleusConfigLow, AdjustNucleusConfigMed, AdjustNucleusConfigHigh, LOGS_DIR
 import load_images
@@ -59,8 +57,7 @@ class CalculateStats:
         dataset = load_images.LoadImagesMasks()
         dataset.load_nuclei(img_dir) 
         dataset.prepare()
-        #print(dataset.image_ids)
-        #print(dataset.image_info)
+
                 
         for image_id in dataset.image_ids:
             image, image_meta, gt_class_id, gt_bbox, gt_mask =\
@@ -134,9 +131,8 @@ class CalculateStats:
                                                   "pred_match": pred_match,
                                                   "overlaps": overlaps,
                                                   "f1"+str(iou_threshold): calculate_f1(gt_match, pred_match)[0],
-                                                  #"f1": calculate_f1(gt_match, pred_match)[0],
-                                                  "precision": calculate_f1(gt_match, pred_match)[1],
-                                                  "recall": calculate_f1(gt_match, pred_match)[2]})
+                                                  "precision"+str(iou_threshold): calculate_f1(gt_match, pred_match)[1],
+                                                  "recall"+str(iou_threshold): calculate_f1(gt_match, pred_match)[2]})
                                    
 
 
@@ -148,6 +144,7 @@ def calculate_f1(gt_matches, pred_matches):
     # For all of the predicted matches, find those that have a matched gt mask
     # and get the length of this array
     true_pos = np.where(pred_matches > -1)[0].shape[0]
+    
     
     # len(pred_match) is all of the predicted masks, positive and negative
     try: 
@@ -272,7 +269,10 @@ for i in setting:
     
 #%% Colours for plotting. From Solarized palette
 
-colour_palette = [(42, 161, 152), (38, 139, 210), (108, 113, 196), (211, 54, 130)]
+colour_palette = [(181, 137, 0), (203, 75, 22), (220, 50, 47), (211, 54, 130), 
+                  (108, 113, 196), (38, 139, 210), (42, 161, 152), (133, 153, 0)]
+
+
 plot_colours = colour_palette
 for i in range(len(colour_palette)):
 	r, g, b = colour_palette[i]
@@ -374,35 +374,93 @@ for j in setting:
 
 df = pd.DataFrame(f1_scores)
 
-subset_df = df[((df["image_name"] == "oof-16um") 
-               | (df["image_name"] == "oof-0um"))
-               & (df["setting"] == "med")]
-
 #%%
 
-
-
-# f1 score vs IoU
-# Compare low/med config
-# i[0] to extract the second image f1_scores
-y_0um = [i[2] for i in list(f1_scores.values())[2:]]
-y_16um = [i[0] for i in list(f1_scores.values())[2:]]
+# image_names = list(set([i for i in df["image_name"]]))
+# Force particular image_name order
+image_names = ["oof-0um", "oof-8um", "oof-16um", "oof-24um", "oof-32um"]
+f1_columns = [i for i in df.filter(like="f1").columns]
 # [2:] to ignore the first key, which is setting
-x_values = [i[2:] for i in list(f1_scores.keys())[2:]]
+x_values = [i[2:] for i in f1_columns]
+legend = []
 
+fig, ax = plt.subplots(1, 1, figsize=(8, 4))
+for i, img in enumerate(image_names):
+    subset_df = df[(df["image_name"] == img) & (df["setting"] == "med")] 
+    y_values = [subset_df[i].values[0] for i in f1_columns]    
+    ax.plot(x_values, y_values, marker="o", color=plot_colours[i])
+    # Strip the "oof-" part of string
+    legend.append(img[4:])
 
-#%%
-
-fig, ax = plt.subplots(1, 1, figsize=(6, 3))
-ax.plot(x_values, y_0um, marker="o", color=plot_colours[3])
-ax.plot(x_values, y_16um, marker="o", color=plot_colours[1])
 ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
 ax.set_xlabel("IoU Threshold")
 ax.set_ylabel("F1 Score")
-ax.legend(["0um", "16um"])
+ax.legend(legend, loc=(1, 0.3))
 fig.tight_layout()
-fig.savefig("low vs med for small overlaps.png", dpi=300, bbox_inches='tight')
+fig.savefig("medium setting for difference focus levels.png", dpi=300, bbox_inches='tight')
+
+#%%
+
+img_dir = "/home/think/Documents/deep-click/datasets/nucleus/stats_images/BBBC008-Human HT29 colon-cancer cells/images+masks"
+
+# Extract f1 scores for images over a range of IoU thresholds
+# 0.1 to 0.9
+iou_levels = np.round(np.arange(0.5, 0.95, 0.05), 2)
+
+# Multiple focus images
+subfolders = next(os.walk(img_dir))[1]
+
+# Create
+f1_scores = {"setting": [],
+             "image_name": []}
+f1_scores.update({"f1"+str(k): [] for k in iou_levels})
+
+setting = ["low", "med"]
+#setting = ["low"]
+
+for j in setting:
+    stats = CalculateStats()
+    stats.gt_detect(img_dir, j)
+
+    stats.calculate_matches_and_f1(iou_levels=iou_levels)
+        
+    for detection in stats.gt_detection_info:
+        for iou in iou_levels:
+            f1_scores["f1"+str(iou)].append(detection["f1"+str(iou)])
     
+    for img in stats.gt_detection_info:
+        f1_scores["image_name"].append(img["image_name"])
+        # Ensure len setting is equal to the images loaded
+        f1_scores["setting"].append(j)
+        
+        # Plot differences
+        fig = visualise.display_detections(img)
+        fig.savefig(img["image_name"]+" "+j+" masks for small overlaps.png", dpi=300, bbox_inches='tight')
+            
+#%%
 
+df = pd.DataFrame(f1_scores)
 
+image_names = list(set([i for i in df["image_name"]]))
+f1_columns = [i for i in df.filter(like="f1").columns]
+# [2:] to ignore the first key, which is setting
+x_values = [i[2:] for i in f1_columns]
+legend = []
+
+fig, ax = plt.subplots(1, 1, figsize=(6, 3))
+for i, sett in enumerate(setting):
+    subset_df = df[(df["setting"] == sett)] 
+    y_values = [subset_df[i].values[0] for i in f1_columns]    
+    ax.plot(x_values, y_values, marker="o", color=plot_colours[i])
+    ax.set_ylim([0, 1])
+    # Strip the "oof-" part of string
+    legend.append(sett)
+
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
+ax.set_xlabel("IoU Threshold")
+ax.set_ylabel("F1 Score")
+ax.legend(legend, loc=(1, 0.4))
+fig.tight_layout()
+fig.savefig("low vs med setting for HT29.png", dpi=300, bbox_inches='tight')
