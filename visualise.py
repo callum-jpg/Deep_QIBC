@@ -25,10 +25,6 @@ def display_detections(detection_output):
         plot_stats = True
     else: 
         plot_stats = False
-        
-    
-    
-    # height, width = input_image.shape[:2]
     
     fig, ax = plt.subplots(1, 3 if plot_stats else 2, figsize=(15, 20))
     
@@ -49,11 +45,7 @@ def display_detections(detection_output):
 Ground truth vs. predicted masks
 Green = True positve, red = True negative, 
 blue = False positive
-Precision: {}, Recall: {}.
-F1@0.7 IoU score: {}""".format(round(detection_output["precision"], 3),
-                       round(detection_output["recall"], 3),
-                       round(detection_output["f10.7"], 3)))
-        #fig.suptitle("Image F1 score: {}".format(detection_output["f1"]))
+F1@0.7 IoU score: {}""".format(round(detection_output["f10.7"], 3)))
     fig.tight_layout()
     
     return fig
