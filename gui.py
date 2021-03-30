@@ -114,6 +114,10 @@ from PIL import Image
 from PIL import ImageTk
 from threading import Thread
 import queue
+import numpy as np
+
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import time
 
@@ -207,20 +211,17 @@ class Iterator:
 
         btn_trigger = tk.Button(self.container, text = "!!!", command = self.trigger)
         btn_trigger.grid(row=1, column=1, sticky="nsew") 
-        
-        self.list = []
 
     def increase(self):
         value = int(self.lbl_value["text"])
         self.lbl_value["text"] = value + 1
         app.print_iterator(int(self.lbl_value["text"]))
-        # Trying to work out how to detect a list has changed between classes
 
     def decrease(self): 
-        value = int(lbl_value["text"])
+        value = int(self.lbl_value["text"])
         self.lbl_value["text"] = value - 1
         app.print_iterator(int(self.lbl_value["text"]))
-        
+
     def trigger(self):
         #l = ListIterator()
         self.queue = queue.Queue()
@@ -228,8 +229,6 @@ class Iterator:
         
         self.parent.after(100, self.process_queue)
 
-
-        
     def process_queue(self):
         try:
             msg = self.queue.get(0)
@@ -245,10 +244,35 @@ class IteratorDisplay:
         self.parent = parent
         self.container = tk.Frame(self.parent)
         self.container.grid(row = row, column = column)
+
+        self.lbl_display = tk.Label(self.container, text = str(data))
+        self.lbl_display.grid(row=0, column=0)   
+    
+    def update(self, data):
+        """
+        Method to update the label created by this class
+        """
+        self.lbl_display["text"] = data
         
-        lbl_display = tk.Label(self.container, text = str(data))
-        lbl_display.grid(row=0, column=0)   
-     
+class ImageDisplay:
+    def __init__(self, parent, row, column):
+        self.parent = parent
+        self.container = tk.Frame(self.parent)
+        self.container.grid(row = row, column = column)
+        
+        x = np.zeros((150, 150))
+        self.figure = Figure()
+        a = self.figure.add_subplot(111)
+        a.imshow(x)
+        
+        # Change colour of plot background
+        self.figure.patch.set_facecolor('black')
+        
+        canvas = FigureCanvasTkAgg(self.figure, master=self.container)
+        canvas.draw()
+        canvas.get_tk_widget().grid(row=0, column=0)
+        canvas._tkcanvas.grid(row=1, column=0)
+        #self.canvas.grid(row = 0, column = 0)
 
 class ListIterator(Thread):
     """
@@ -263,17 +287,48 @@ class ListIterator(Thread):
     Should I run it in a different thread? I think so
     """
     def __init__(self, queue):
-        Thread.__init__(self)
+        # Target changes the function thread.start() will run
+        # Otherwise, it will look for a run() method
+        Thread.__init__(self, target = self.hello)
         self.queue = queue
 
-    # class method called "run" to enable threading
-    def run(self):
+    def hello(self):
         for i in range(5):
             time.sleep(0.5)
             self.queue.put(i)
 
 
 
+import deepspace
+
+class IntergalacticWidget:
+    """
+    A test widget for running a function from another file in a thread
+    """
+    def __init__(self, parent, row, column):
+        self.parent = parent
+        self.container = tk.Frame(self.parent)
+        self.container.grid(row = row, column = column)
+        
+        btn_start = tk.Button(self.container, text = "Start", command = self.start)
+        btn_start.grid(row=1, column=1, sticky="nsew", padx = 20, pady = 20) 
+        
+    def start(self):
+        self.queue = queue.Queue()
+
+        deepspace.DeepSpace(self.queue).start()
+        
+        self.parent.after(100, self.process_queue)
+
+    def process_queue(self):
+        try:
+            msg = self.queue.get(0)
+            print(msg)
+            # Show result of the task if needed
+            self.parent.after(100, self.process_queue)
+            app.print_iterator1(msg)
+        except queue.Empty:
+            self.parent.after(100, self.process_queue)
 
 class DeepQIBCgui(tk.Frame):
     def __init__(self, master, *args, **kwargs):
@@ -285,15 +340,24 @@ class DeepQIBCgui(tk.Frame):
         
         iterator = Iterator(self.master, 1, 0)
 
-        iterator = Iterator(self.master, 1, 1)
+        iterator1 = Iterator(self.master, 1, 1)
         
+        ImageDisplay(self.master, 6, 1)
+        
+        intergalactic = IntergalacticWidget(self.master, 5, 1)
+        
+        # Create a display obect at 1x2 displaying value 0
+        self.iterator = IteratorDisplay(self.master, 1, 2, 0)
         
     def print_iterator(self, data):
-        disp = IteratorDisplay(self.master, 1, 2, data)
+        "Function trggered by a button press"
+        self.iterator.update(data)
 
     def print_iterator1(self, data):
         disp = IteratorDisplay(self.master, 2, 1, data)
 
+    #def display_image(self, data):
+        
 if __name__ == "__main__":
     root = tk.Tk()
     app = DeepQIBCgui(root)
