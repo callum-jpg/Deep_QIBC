@@ -134,6 +134,8 @@ class BrowseFiles:
         # This will be the parent window passed to an element/widget (eg. a button)
         # contained within. 
         self.container.grid(row = row, column = column)
+        # Create a list to hold image paths
+        self.image_paths = []
         
         def browse_files():
             # Prompt user to select birectory
@@ -147,8 +149,11 @@ class BrowseFiles:
             for file in os.listdir(self.filename):
                 if file.endswith((".tif", ".png")):
                     self.dir_contents.insert(tk.END, file)
+                    
+                    self.image_paths.append(os.path.join(self.filename, file))
+
         
-        def get_image_selection(_selection):
+        def open_image_selection(_selection):
             img_selection = self.dir_contents.curselection()
             self.img_filename = self.dir_contents.get(img_selection)
             img_open = Image.open(self.img_filename)
@@ -184,13 +189,136 @@ class BrowseFiles:
             self.container,
             width = 75)
         # When a file in dir_contents is double clicked, open the image
-        self.dir_contents.bind("<Double-1>", get_image_selection)
+        self.dir_contents.bind("<Double-1>", open_image_selection)
 
         # Position the explorer and button within self.container
         self.lbl_explorer.grid(row = 0, column = 0)
         self.btn_browse.grid(row = 0, column = 1)
         self.dir_contents.grid(row = 1, column = 0)
+
+
+class ChannelSelection:
+    def __init__(self, parent, row, column):
+        self.parent = parent
+        self.container = tk.Frame(self.parent)
+        self.container.grid(row = row, column = column, sticky='w')
+    
+        ### Building channel selection
+        channel_options = [1, 2, 3, 4]
         
+        # IntVar() to store number of channels selected
+        self.channel_count = tk.IntVar()
+        self.channel_count.set(channel_options[0])
+        
+        self.lbl_channel = tk.Label(self.container, 
+                                          text = "Select number of channels:")
+        
+        
+
+                # self.channel_box = tk.Label(self.container,
+                #                             text = "channel {}".format(channel))
+                # self.channel_box.grid(row = channel, column = 0)
+        
+        self.channel_option = tk.OptionMenu(self.container,
+                                            self.channel_count,
+                                            *channel_options,
+                                            command = self.spawn_channels)
+        
+#         self.lbl_channel_select = tk.Label(self.container, 
+#                                           text = """Input text to delinate image names 
+# into individual channels""")
+        
+        # Create channel entry fields that are by default disabled
+        self.lbl_channel1 = tk.Label(self.container, text="Channel 1:")        
+        self.channel1 = tk.Entry(self.container, state=tk.DISABLED)
+        
+        self.lbl_channel2 = tk.Label(self.container, text="Channel 2:")
+        self.channel2 = tk.Entry(self.container, state=tk.DISABLED)
+        
+        self.lbl_channel3 = tk.Label(self.container, text="Channel 3:")
+        self.channel3 = tk.Entry(self.container, state=tk.DISABLED)
+        
+        self.lbl_channel4 = tk.Label(self.container, text="Channel 4:")
+        self.channel4 = tk.Entry(self.container, state=tk.DISABLED)
+        
+        self.lbl_regex = tk.Label(self.container,
+                                  text="Input regex to extract \nchannel info from image name:")
+        self.regex = tk.Entry(self.container, state=tk.DISABLED)
+        
+        
+        # Object channel selection
+        self.object_channel = tk.IntVar()
+        self.object_sel = tk.OptionMenu(self.container, self.object_channel, *channel_options)
+        self.object_sel.config(state="disabled")
+        self.object_sel.grid(row = 10, column=0)
+#tk.OptionMenu(master, variable, value, values, kwargs)
+
+
+        # Placing channel selection
+        self.lbl_channel.grid(row = 2, column = 0, sticky="nsew")
+        self.channel_option.grid(row = 2, column = 1, sticky="nsew")
+
+        self.lbl_channel1.grid(row=5, column=0, sticky="e")
+        self.channel1.grid(row=5, column=1, sticky="w")       
+        
+        self.lbl_channel2.grid(row=6, column=0, sticky="e")
+        self.channel2.grid(row=6, column=1, sticky="nsew")
+        
+        self.lbl_channel3.grid(row=7, column=0, sticky="e")
+        self.channel3.grid(row=7, column=1, sticky="nsew")
+        
+        self.lbl_channel4.grid(row=8, column=0, sticky="e")
+        self.channel4.grid(row=8, column=1, sticky="nsew")
+        
+        self.lbl_regex.grid(row=9, column=0, sticky="e")
+        self.regex.grid(row=9, column=1, sticky="w")
+
+        
+    def spawn_channels(self, _):
+        """
+        Running spawn_channels as a command from OptionMenu does actually
+        return the selected value, but this function ignores the value as
+        _ in order to use get() instead
+        """
+        channels = self.channel_count.get()
+        object_dropdown = self.object_sel['menu']
+        # Remove all old dropdown options
+        self.object_sel['menu'].delete(0, tk.END)
+
+        if channels == 2:
+            self.channel1.config(state=tk.NORMAL)
+            self.channel2.config(state=tk.NORMAL)
+            self.channel3.config(state=tk.DISABLED)
+            self.channel4.config(state=tk.DISABLED)
+            self.regex.config(state=tk.NORMAL)
+            
+            self.object_sel.config(state="active")
+            
+            for i in [1, 2]:
+                object_dropdown.add_command(label=i)
+        if channels == 3:
+            self.channel1.config(state=tk.NORMAL)
+            self.channel2.config(state=tk.NORMAL)
+            self.channel3.config(state=tk.NORMAL)
+            self.channel4.config(state=tk.DISABLED)
+            self.regex.config(state=tk.NORMAL)
+        if channels == 4:
+            self.channel1.config(state=tk.NORMAL)
+            self.channel2.config(state=tk.NORMAL)
+            self.channel3.config(state=tk.NORMAL)
+            self.channel4.config(state=tk.NORMAL)
+            self.regex.config(state=tk.NORMAL)
+        if channels == 1:
+            self.channel1.config(state=tk.DISABLED)
+            self.channel2.config(state=tk.DISABLED)
+            self.channel3.config(state=tk.DISABLED)
+            self.channel4.config(state=tk.DISABLED)
+            self.regex.config(state=tk.DISABLED)
+            
+            self.object_sel.config(state="disabled")
+
+
+
 class Iterator:
     """
     For testing passing data between widgets/classes
@@ -221,6 +349,18 @@ class Iterator:
         value = int(self.lbl_value["text"])
         self.lbl_value["text"] = value - 1
         app.print_iterator(int(self.lbl_value["text"]))
+        
+        # Get strings of inputted channel name delieators
+        channel_list = list((
+            app.browse.channel1.get(),
+            app.browse.channel2.get(),
+            app.browse.channel3.get(),
+            app.browse.channel4.get()))
+        
+        # Remove empty strings (ie. boxes not filled in)
+        channel_list = [channel for channel in channel_list if channel]
+        
+        print(channel_list)
 
     def trigger(self):
         #l = ListIterator()
@@ -255,24 +395,25 @@ class IteratorDisplay:
         self.lbl_display["text"] = data
         
 class ImageDisplay:
-    def __init__(self, parent, row, column):
+    def __init__(self, parent, row, column, image):
         self.parent = parent
         self.container = tk.Frame(self.parent)
         self.container.grid(row = row, column = column)
         
-        x = np.zeros((150, 150))
-        self.figure = Figure()
-        a = self.figure.add_subplot(111)
-        a.imshow(x)
+        self.fig = Figure((5, 5))
+        self.ax = self.fig.add_subplot(111)
+        self.ax.imshow(image)
         
         # Change colour of plot background
-        self.figure.patch.set_facecolor('black')
+        # It doesn't seem possible to make it transparent, so match it
+        self.fig.patch.set_facecolor(color='lightgray')
+        # Remove padding from around the plotted image
+        self.fig.set_tight_layout(True)
         
-        canvas = FigureCanvasTkAgg(self.figure, master=self.container)
+        canvas = FigureCanvasTkAgg(self.fig, master=self.container)
         canvas.draw()
         canvas.get_tk_widget().grid(row=0, column=0)
         canvas._tkcanvas.grid(row=1, column=0)
-        #self.canvas.grid(row = 0, column = 0)
 
 class ListIterator(Thread):
     """
@@ -334,15 +475,17 @@ class DeepQIBCgui(tk.Frame):
     def __init__(self, master, *args, **kwargs):
         self.master = master
         
-        browse = BrowseFiles(self.master, 0, 0)
+        self.browse = BrowseFiles(self.master, 0, 0)
         
         browse1 = BrowseFiles(self.master, 0, 1)
         
-        iterator = Iterator(self.master, 1, 0)
+        channels = ChannelSelection(self.master, 1, 0)
 
         iterator1 = Iterator(self.master, 1, 1)
-        
-        ImageDisplay(self.master, 6, 1)
+
+        # Test image
+        x = np.zeros((200, 200, 3))
+        ImageDisplay(self.master, 0, 2, x)
         
         intergalactic = IntergalacticWidget(self.master, 5, 1)
         
@@ -355,6 +498,10 @@ class DeepQIBCgui(tk.Frame):
 
     def print_iterator1(self, data):
         disp = IteratorDisplay(self.master, 2, 1, data)
+        
+
+        
+
 
     #def display_image(self, data):
         
