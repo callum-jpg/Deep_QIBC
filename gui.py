@@ -204,11 +204,11 @@ class ChannelSelection:
         self.container.grid(row = row, column = column, sticky='w')
     
         ### Building channel selection
-        channel_options = [1, 2, 3, 4]
+        self.channel_options = [1, 2, 3, 4]
         
         # IntVar() to store number of channels selected
         self.channel_count = tk.IntVar()
-        self.channel_count.set(channel_options[0])
+        self.channel_count.set(self.channel_options[0])
         
         self.lbl_channel = tk.Label(self.container, 
                                           text = "Select number of channels:")
@@ -221,7 +221,7 @@ class ChannelSelection:
         
         self.channel_option = tk.OptionMenu(self.container,
                                             self.channel_count,
-                                            *channel_options,
+                                            *self.channel_options,
                                             command = self.spawn_channels)
         
 #         self.lbl_channel_select = tk.Label(self.container, 
@@ -247,8 +247,8 @@ class ChannelSelection:
         
         
         # Object channel selection
-        self.object_channel = tk.IntVar()
-        self.object_sel = tk.OptionMenu(self.container, self.object_channel, *channel_options)
+        self.object_channel = tk.IntVar(value=1)
+        self.object_sel = tk.OptionMenu(self.container, self.object_channel, '')
         self.object_sel.config(state="disabled")
         self.object_sel.grid(row = 10, column=0)
 #tk.OptionMenu(master, variable, value, values, kwargs)
@@ -280,35 +280,64 @@ class ChannelSelection:
         return the selected value, but this function ignores the value as
         _ in order to use get() instead
         """
+        # Get the selected channel by OptuionMenu (instead of using above _)
         channels = self.channel_count.get()
         object_dropdown = self.object_sel['menu']
         # Remove all old dropdown options
         self.object_sel['menu'].delete(0, tk.END)
-
+        # Reset object to channel 1
+        self.object_channel.set(1)
         if channels == 2:
+            # Remove any text entered
+            self.channel3.delete(0, tk.END)
+            self.channel4.delete(0, tk.END)
+            # Enable or disable buttons based on selection
             self.channel1.config(state=tk.NORMAL)
             self.channel2.config(state=tk.NORMAL)
             self.channel3.config(state=tk.DISABLED)
             self.channel4.config(state=tk.DISABLED)
             self.regex.config(state=tk.NORMAL)
-            
+            # Channels > 1 so decide object channel to run detection on
             self.object_sel.config(state="active")
+            for ch in self.channel_options[0:2]:
+                # Add a new value, ch, and also set the new dropdown value
+                # of object_channel
+                object_dropdown.add_command(label = ch, 
+                                            command = lambda channel=ch: self.object_channel.set(channel))
             
-            for i in [1, 2]:
-                object_dropdown.add_command(label=i)
         if channels == 3:
+            self.channel4.delete(0, tk.END)            
+            
             self.channel1.config(state=tk.NORMAL)
             self.channel2.config(state=tk.NORMAL)
             self.channel3.config(state=tk.NORMAL)
             self.channel4.config(state=tk.DISABLED)
             self.regex.config(state=tk.NORMAL)
+            
+            self.object_sel.config(state="active")
+            for ch in self.channel_options[0:3]:
+                object_dropdown.add_command(label = ch, 
+                                            command = lambda channel=ch: self.object_channel.set(channel))
+
         if channels == 4:
             self.channel1.config(state=tk.NORMAL)
             self.channel2.config(state=tk.NORMAL)
             self.channel3.config(state=tk.NORMAL)
             self.channel4.config(state=tk.NORMAL)
             self.regex.config(state=tk.NORMAL)
+            
+            self.object_sel.config(state="active")
+            for ch in self.channel_options[0:4]:
+                object_dropdown.add_command(label = ch, 
+                                            command = lambda channel=ch: self.object_channel.set(channel))
+            
         if channels == 1:
+            self.channel1.delete(0, tk.END)
+            self.channel2.delete(0, tk.END)
+            self.channel3.delete(0, tk.END)
+            self.channel4.delete(0, tk.END)
+            self.regex.delete(0, tk.END)
+            
             self.channel1.config(state=tk.DISABLED)
             self.channel2.config(state=tk.DISABLED)
             self.channel3.config(state=tk.DISABLED)
@@ -316,7 +345,22 @@ class ChannelSelection:
             self.regex.config(state=tk.DISABLED)
             
             self.object_sel.config(state="disabled")
-
+                
+class RunDetection:
+    def __init__(self, parent, row, column):
+        self.parent = parent
+        self.container = tk.Frame(self.parent)
+        self.container.grid(row = row, column = column, sticky='w')
+        
+        # Detection button
+        self.btn_detection = tk.Button(self.container, 
+                                       text = "Run Detection", 
+                                       command = self.run_detection)
+        self.btn_detection.grid(row=0,column=0)
+    
+    def run_detection(self):
+        
+        print("hello")
 
 
 class Iterator:
@@ -482,12 +526,15 @@ class DeepQIBCgui(tk.Frame):
         channels = ChannelSelection(self.master, 1, 0)
 
         iterator1 = Iterator(self.master, 1, 1)
+        
+        detect = RunDetection(self.master, 2, 0)
 
         # Test image
         x = np.zeros((200, 200, 3))
         ImageDisplay(self.master, 0, 2, x)
         
         intergalactic = IntergalacticWidget(self.master, 5, 1)
+        
         
         # Create a display obect at 1x2 displaying value 0
         self.iterator = IteratorDisplay(self.master, 1, 2, 0)
