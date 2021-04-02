@@ -121,6 +121,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import time
 
+# import deepspace
+
+import load_images
+import detect
+
+
 class BrowseFiles:
     """
     BrowseFiles widget
@@ -139,18 +145,18 @@ class BrowseFiles:
         
         def browse_files():
             # Prompt user to select birectory
-            self.filename = filedialog.askdirectory()
+            self.foldername = filedialog.askdirectory()
             # Display selected folder
-            self.lbl_explorer.configure(text="Folder Opened: "+self.filename)
+            self.lbl_explorer.configure(text="Folder Opened: "+self.foldername)
             # Clear the contents that may previously be displayed
             self.dir_contents.delete(0, tk.END)
             # For the user directory selected, search the directory
             # and print tif and png images into the ListBox
-            for file in os.listdir(self.filename):
-                if file.endswith((".tif", ".png")):
+            for file in os.listdir(self.foldername):
+                if file.endswith((".tif", ".png", ".TIF")):
                     self.dir_contents.insert(tk.END, file)
-                    
-                    self.image_paths.append(os.path.join(self.filename, file))
+
+                    self.image_paths.append(os.path.join(self.foldername, file))
 
         
         def open_image_selection(_selection):
@@ -224,26 +230,45 @@ class ChannelSelection:
                                             *self.channel_options,
                                             command = self.spawn_channels)
         
-#         self.lbl_channel_select = tk.Label(self.container, 
-#                                           text = """Input text to delinate image names 
-# into individual channels""")
+        # All of this channel stuff is messy. Perhaps all of these elements
+        # should be stored in a dictionary? eg. dict["ch1"] would contain
+        # all of the channel 1 entry fields in a list, with consistent indexing
         
         # Create channel entry fields that are by default disabled
-        self.lbl_channel1 = tk.Label(self.container, text="Channel 1:")        
-        self.channel1 = tk.Entry(self.container, state=tk.DISABLED)
+        self.lbl_channel1 = tk.Label(self.container, text="Channel 1:") 
+        # StringVar to hold entry field into
+        self.channel1 = tk.StringVar() 
+        # Trace to detect when entry field has changed
+        self.channel1.trace("w", self.detect_check) 
+        self.channel1_entry = tk.Entry(self.container,
+                                       textvariable=self.channel1,
+                                       state=tk.DISABLED)
+        self.channel1_regex = tk.Entry(self.container, state=tk.DISABLED)
         
         self.lbl_channel2 = tk.Label(self.container, text="Channel 2:")
-        self.channel2 = tk.Entry(self.container, state=tk.DISABLED)
+        self.channel2 = tk.StringVar() 
+        self.channel2.trace("w", self.detect_check) 
+        self.channel2_entry = tk.Entry(self.container, 
+                                       textvariable = self.channel2,
+                                       state=tk.DISABLED)
+        self.channel2_regex = tk.Entry(self.container, state=tk.DISABLED)
+
         
         self.lbl_channel3 = tk.Label(self.container, text="Channel 3:")
-        self.channel3 = tk.Entry(self.container, state=tk.DISABLED)
+        self.channel3 = tk.StringVar() 
+        self.channel3.trace("w", self.detect_check) 
+        self.channel3_entry = tk.Entry(self.container, 
+                                 textvariable = self.channel3,
+                                 state=tk.DISABLED)
+        self.channel3_regex = tk.Entry(self.container, state=tk.DISABLED)
         
         self.lbl_channel4 = tk.Label(self.container, text="Channel 4:")
-        self.channel4 = tk.Entry(self.container, state=tk.DISABLED)
-        
-        self.lbl_regex = tk.Label(self.container,
-                                  text="Input regex to extract \nchannel info from image name:")
-        self.regex = tk.Entry(self.container, state=tk.DISABLED)
+        self.channel4 = tk.StringVar() 
+        self.channel4.trace("w", self.detect_check) 
+        self.channel4_entry = tk.Entry(self.container, 
+                                 textvariable = self.channel4,
+                                 state=tk.DISABLED)
+        self.channel4_regex = tk.Entry(self.container, state=tk.DISABLED)
         
         
         # Object channel selection
@@ -256,24 +281,31 @@ class ChannelSelection:
 
         # Placing channel selection
         self.lbl_channel.grid(row = 2, column = 0, sticky="nsew")
-        self.channel_option.grid(row = 2, column = 1, sticky="nsew")
+        self.channel_option.grid(row = 2, column = 1, sticky="nsew")        
 
         self.lbl_channel1.grid(row=5, column=0, sticky="e")
-        self.channel1.grid(row=5, column=1, sticky="w")       
+        self.channel1_entry.grid(row=5, column=1, sticky="w")   
+        self.channel1_regex.grid(row = 5, column = 2, stick = "w")
         
         self.lbl_channel2.grid(row=6, column=0, sticky="e")
-        self.channel2.grid(row=6, column=1, sticky="nsew")
+        self.channel2_entry.grid(row=6, column=1, sticky="nsew")
+        self.channel2_regex.grid(row = 6, column = 2, stick = "w")
         
         self.lbl_channel3.grid(row=7, column=0, sticky="e")
-        self.channel3.grid(row=7, column=1, sticky="nsew")
+        self.channel3_entry.grid(row=7, column=1, sticky="nsew")
+        self.channel3_regex.grid(row = 7, column = 2, stick = "w")
         
         self.lbl_channel4.grid(row=8, column=0, sticky="e")
-        self.channel4.grid(row=8, column=1, sticky="nsew")
-        
-        self.lbl_regex.grid(row=9, column=0, sticky="e")
-        self.regex.grid(row=9, column=1, sticky="w")
+        self.channel4_entry.grid(row=8, column=1, sticky="nsew")
+        self.channel4_regex.grid(row = 8, column = 2, stick = "w")
 
-        
+    def detect_check(self, *args):
+        """
+        Trace does not accept app.detect as a command since its ran in __init__, 
+        so this function is to pass trace information to the detection class. 
+        """
+        app.detect.detect_btn_state()
+
     def spawn_channels(self, _):
         """
         Running spawn_channels as a command from OptionMenu does actually
@@ -287,16 +319,27 @@ class ChannelSelection:
         self.object_sel['menu'].delete(0, tk.END)
         # Reset object to channel 1
         self.object_channel.set(1)
+        
         if channels == 2:
-            # Remove any text entered
-            self.channel3.delete(0, tk.END)
-            self.channel4.delete(0, tk.END)
-            # Enable or disable buttons based on selection
-            self.channel1.config(state=tk.NORMAL)
-            self.channel2.config(state=tk.NORMAL)
-            self.channel3.config(state=tk.DISABLED)
-            self.channel4.config(state=tk.DISABLED)
-            self.regex.config(state=tk.NORMAL)
+            # Remove any text entered un unrequired channels
+            self.channel3_entry.delete(0, tk.END)
+            self.channel4_entry.delete(0, tk.END)
+            self.channel3_regex.delete(0, tk.END)
+            self.channel4_regex.delete(0, tk.END)
+            # Enable or disable entry fields based on selection
+            self.channel1_entry.config(state=tk.NORMAL)
+            self.channel2_entry.config(state=tk.NORMAL)
+            self.channel3_entry.config(state=tk.DISABLED)
+            self.channel4_entry.config(state=tk.DISABLED)
+            
+            # Enable or disable relevent regex fields
+            self.channel1_regex.config(state=tk.NORMAL)
+            self.channel2_regex.config(state=tk.NORMAL)
+            self.channel3_regex.config(state=tk.DISABLED)
+            self.channel4_regex.config(state=tk.DISABLED)
+            
+            app.detect.btn_detection.config(state=tk.DISABLED)
+            
             # Channels > 1 so decide object channel to run detection on
             self.object_sel.config(state="active")
             for ch in self.channel_options[0:2]:
@@ -306,25 +349,34 @@ class ChannelSelection:
                                             command = lambda channel=ch: self.object_channel.set(channel))
             
         if channels == 3:
-            self.channel4.delete(0, tk.END)            
+            self.channel4_entry.delete(0, tk.END)
+            self.channel4_regex.delete(0, tk.END)
             
-            self.channel1.config(state=tk.NORMAL)
-            self.channel2.config(state=tk.NORMAL)
-            self.channel3.config(state=tk.NORMAL)
-            self.channel4.config(state=tk.DISABLED)
-            self.regex.config(state=tk.NORMAL)
-            
+            self.channel1_entry.config(state=tk.NORMAL)
+            self.channel2_entry.config(state=tk.NORMAL)
+            self.channel3_entry.config(state=tk.NORMAL)
+            self.channel4_entry.config(state=tk.DISABLED)
+
+            self.channel1_regex.config(state=tk.NORMAL)
+            self.channel2_regex.config(state=tk.NORMAL)
+            self.channel3_regex.config(state=tk.NORMAL)
+            self.channel4_regex.config(state=tk.DISABLED)
+
             self.object_sel.config(state="active")
             for ch in self.channel_options[0:3]:
                 object_dropdown.add_command(label = ch, 
                                             command = lambda channel=ch: self.object_channel.set(channel))
 
         if channels == 4:
-            self.channel1.config(state=tk.NORMAL)
-            self.channel2.config(state=tk.NORMAL)
-            self.channel3.config(state=tk.NORMAL)
-            self.channel4.config(state=tk.NORMAL)
-            self.regex.config(state=tk.NORMAL)
+            self.channel1_entry.config(state=tk.NORMAL)
+            self.channel2_entry.config(state=tk.NORMAL)
+            self.channel3_entry.config(state=tk.NORMAL)
+            self.channel4_entry.config(state=tk.NORMAL)
+            
+            self.channel1_regex.config(state=tk.NORMAL)
+            self.channel2_regex.config(state=tk.NORMAL)
+            self.channel3_regex.config(state=tk.NORMAL)
+            self.channel4_regex.config(state=tk.NORMAL)
             
             self.object_sel.config(state="active")
             for ch in self.channel_options[0:4]:
@@ -332,17 +384,26 @@ class ChannelSelection:
                                             command = lambda channel=ch: self.object_channel.set(channel))
             
         if channels == 1:
-            self.channel1.delete(0, tk.END)
-            self.channel2.delete(0, tk.END)
-            self.channel3.delete(0, tk.END)
-            self.channel4.delete(0, tk.END)
-            self.regex.delete(0, tk.END)
+            # Delete info not requried
+            self.channel1_entry.delete(0, tk.END)
+            self.channel2_entry.delete(0, tk.END)
+            self.channel3_entry.delete(0, tk.END)
+            self.channel4_entry.delete(0, tk.END)
             
-            self.channel1.config(state=tk.DISABLED)
-            self.channel2.config(state=tk.DISABLED)
-            self.channel3.config(state=tk.DISABLED)
-            self.channel4.config(state=tk.DISABLED)
-            self.regex.config(state=tk.DISABLED)
+            self.channel1_regex.delete(0, tk.END)
+            self.channel2_regex.delete(0, tk.END)
+            self.channel3_regex.delete(0, tk.END)
+            self.channel4_regex.delete(0, tk.END)
+            
+            self.channel1_entry.config(state=tk.DISABLED)
+            self.channel2_entry.config(state=tk.DISABLED)
+            self.channel3_entry.config(state=tk.DISABLED)
+            self.channel4_entry.config(state=tk.DISABLED)
+            
+            self.channel1_regex.config(state=tk.DISABLED)
+            self.channel2_regex.config(state=tk.DISABLED)
+            self.channel3_regex.config(state=tk.DISABLED)
+            self.channel4_regex.config(state=tk.DISABLED)
             
             self.object_sel.config(state="disabled")
                 
@@ -354,13 +415,141 @@ class RunDetection:
         
         # Detection button
         self.btn_detection = tk.Button(self.container, 
-                                       text = "Run Detection", 
+                                       text = "Run Detection",
+                                       state = "normal",
                                        command = self.run_detection)
+        #self.btn_detection.config(state=tk.DISABLED)
         self.btn_detection.grid(row=0,column=0)
     
-    def run_detection(self):
         
-        print("hello")
+    # *args allows run_detection to accept the output from tk.trace
+    def detect_btn_state(self, *args):
+        """
+        Require some logic for checking if detection button should be enabled
+        
+        run detection should be executed everytime the channel dropdown changes,
+        everytime an entry field is filled/deleted
+        
+        In all cases, check that len(image_paths) > 1
+        
+        If channel_count == 1, check that len(image_paths) > 1. If True, 
+        enable detection button
+        
+        If channel_count == 2, check that channel text is present and works on
+        image_path extraction
+        
+        
+        To check, channels should run the detection button check function
+        """
+        
+        channels = app.channels.channel_count.get()
+        # print(channels)
+        
+        # print(app.channels.channel1.get())
+
+        if channels == 1:
+            self.btn_detection.config(state=tk.NORMAL)
+
+        elif (channels == 2 
+            and len(app.channels.channel1.get()) > 0
+            and len(app.channels.channel2.get()) > 0):
+            self.btn_detection.config(state="normal")
+
+            
+            
+        elif (channels == 3 
+            and len(app.channels.channel1.get()) > 0
+            and len(app.channels.channel2.get()) > 0
+            and len(app.channels.channel3.get()) > 0):
+            self.btn_detection.config(state="normal")
+
+        elif (channels == 4 
+            and len(app.channels.channel1.get()) > 0
+            and len(app.channels.channel2.get()) > 0
+            and len(app.channels.channel3.get()) > 0
+            and len(app.channels.channel4.get()) > 0):
+            self.btn_detection.config(state="normal")
+
+        else: 
+            self.btn_detection.config(state=tk.DISABLED)
+        # if (len(app.channels.channel1.get()) == 0
+        #     or len(app.channels.channel2.get()) == 0
+        #     or len(app.channels.channel3.get()) == 0
+        #     or len(app.channels.channel4.get()) == 0):
+        #     self.btn_detection.config(state=tk.DISABLED)
+        
+        
+        # if app.channels.channel_count.get() == 2:
+        #     #self.btn_detection.config(state=tk.DISABLED)
+        #     print("sdfsdf")
+        
+        # # Image paths
+        # print(app.browse.image_paths)
+        
+        # # Number of channels 
+        # print(app.channels.channel_count.get())
+        
+        
+        # # # Channel info
+        # print(app.channels.channel1.get())
+        
+        # print(app.channels.channel2.get())
+        # print(len(app.channels.channel3.get()))
+        
+    def run_detection(self):
+        self.queue = queue.Queue()
+        
+        # # Load images
+        # images = load_images.LoadImages()
+        # images.add_channels(["w1DAPI", "w2Cy5", "w3mCherry", "w4GFP"])
+        # image_dir = "/home/think/Documents/deep-click/images"
+        # images.load_images(image_dir)
+        # # Run detection
+        # nuclei_detection = detect.DetectNucleus()
+        # # Select channel to run detection on (in this case, DAPI)
+        # object_channel = images.channels[0]
+        # nuclei_detection.run_detection(images.image_info, "high", "cpu", object_channel)
+        # nuclei_detection.results
+        
+        # Gather unique channel filename parts
+        unique_ch_names = list((app.channels.channel1.get(),
+                               app.channels.channel2.get(),
+                               app.channels.channel3.get(),
+                               app.channels.channel4.get()))
+        
+        # Remove empty string from channels
+        unique_ch_names = [ch for ch in unique_ch_names if ch]    
+        
+        images = load_images.LoadImages()
+        images.add_channels(unique_ch_names)
+        images.load_images(app.browse.foldername)
+        
+        if len(unique_ch_names) > 0:
+            selected_obj = app.channels.object_channel.get()
+            obj_channel = unique_ch_names[selected_obj - 1]
+        else:
+            obj_channel = None
+            
+        nuclei_detection = detect.DetectNucleus(self.queue,
+                                                images.image_info, 
+                                                "low", 
+                                                "cpu", 
+                                                obj_channel).start()
+
+
+        #deepspace.DeepSpace(self.queue).start()
+    
+        
+        self.parent.after(100, self.process_queue)
+
+    def process_queue(self):
+        try:
+            msg = self.queue.get(0)
+            print(msg)
+            # Show result of the task if needed
+            self.parent.after(100, self.process_queue)
+        except queue.Empty:
+            self.parent.after(100, self.process_queue)
 
 
 class Iterator:
@@ -423,6 +612,7 @@ class Iterator:
         except queue.Empty:
             self.parent.after(100, self.process_queue)
 
+
 class IteratorDisplay:
     def __init__(self, parent, row, column, data):
         self.parent = parent
@@ -484,36 +674,36 @@ class ListIterator(Thread):
 
 
 
-import deepspace
 
-class IntergalacticWidget:
-    """
-    A test widget for running a function from another file in a thread
-    """
-    def __init__(self, parent, row, column):
-        self.parent = parent
-        self.container = tk.Frame(self.parent)
-        self.container.grid(row = row, column = column)
-        
-        btn_start = tk.Button(self.container, text = "Start", command = self.start)
-        btn_start.grid(row=1, column=1, sticky="nsew", padx = 20, pady = 20) 
-        
-    def start(self):
-        self.queue = queue.Queue()
 
-        deepspace.DeepSpace(self.queue).start()
+# class IntergalacticWidget:
+#     """
+#     A test widget for running a function from another file in a thread
+#     """
+#     def __init__(self, parent, row, column):
+#         self.parent = parent
+#         self.container = tk.Frame(self.parent)
+#         self.container.grid(row = row, column = column)
         
-        self.parent.after(100, self.process_queue)
+#         btn_start = tk.Button(self.container, text = "Start", command = self.start)
+#         btn_start.grid(row=1, column=1, sticky="nsew", padx = 20, pady = 20) 
+        
+#     def start(self):
+#         self.queue = queue.Queue()
 
-    def process_queue(self):
-        try:
-            msg = self.queue.get(0)
-            print(msg)
-            # Show result of the task if needed
-            self.parent.after(100, self.process_queue)
-            app.print_iterator1(msg)
-        except queue.Empty:
-            self.parent.after(100, self.process_queue)
+#         deepspace.DeepSpace(self.queue).start()
+        
+#         self.parent.after(100, self.process_queue)
+
+#     def process_queue(self):
+#         try:
+#             msg = self.queue.get(0)
+#             print(msg)
+#             # Show result of the task if needed
+#             self.parent.after(100, self.process_queue)
+#             app.print_iterator1(msg)
+#         except queue.Empty:
+#             self.parent.after(100, self.process_queue)
 
 class DeepQIBCgui(tk.Frame):
     def __init__(self, master, *args, **kwargs):
@@ -523,17 +713,17 @@ class DeepQIBCgui(tk.Frame):
         
         browse1 = BrowseFiles(self.master, 0, 1)
         
-        channels = ChannelSelection(self.master, 1, 0)
+        self.channels = ChannelSelection(self.master, 1, 0)
 
         iterator1 = Iterator(self.master, 1, 1)
         
-        detect = RunDetection(self.master, 2, 0)
+        self.detect = RunDetection(self.master, 2, 0)
 
         # Test image
         x = np.zeros((200, 200, 3))
         ImageDisplay(self.master, 0, 2, x)
-        
-        intergalactic = IntergalacticWidget(self.master, 5, 1)
+
+        # intergalactic = IntergalacticWidget(self.master, 5, 1)
         
         
         # Create a display obect at 1x2 displaying value 0
@@ -545,12 +735,7 @@ class DeepQIBCgui(tk.Frame):
 
     def print_iterator1(self, data):
         disp = IteratorDisplay(self.master, 2, 1, data)
-        
-
-        
-
-
-    #def display_image(self, data):
+    
         
 if __name__ == "__main__":
     root = tk.Tk()

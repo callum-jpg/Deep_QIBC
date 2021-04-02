@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import skimage
 import time
+from threading import Thread
 
 mrcnn_dir = os.path.abspath("Mask_RCNN")
 sys.path.append(mrcnn_dir)
@@ -64,16 +65,27 @@ class AdjustNucleusConfigHigh(nucleus.NucleusConfig):
         IMAGE_MAX_DIM = 2048  
 
 
-class DetectNucleus:
-    def __init__(self):
+class DetectNucleus(Thread):
+    def __init__(self, queue, images, computation_requirement="low", device="cpu",
+                 object_channel=None):
+        # Target changes the function thread.start() will run
+        # Otherwise, it will look for a run() method
+        Thread.__init__(self, target = self.run_detection)
+        self.queue = queue
+        self.images = images
+        self.computation_requirement = computation_requirement
+        self.device = device
+        self.object_channel = object_channel
+        
         # Instantiate the desired computation config
         self.config_low = AdjustNucleusConfigLow()
         self.config_med = AdjustNucleusConfigMed()
         self.config_high = AdjustNucleusConfigHigh()
         self.results = []
         
-    def run_detection(self, images, computation_requirement="low", device="cpu",
-                      object_channel=None,):
+    # def run_detection(self, images, computation_requirement="low", device="cpu",
+    #                   object_channel=None,):
+    def run_detection(self):
         """
         Runs the Mask R-CNN model detection. Images is from images.image_info.
         
@@ -88,25 +100,25 @@ class DetectNucleus:
         """
         
         # Load optional configs
-        if computation_requirement == "low":
+        if self.computation_requirement == "low":
             print("Using low settings")
             config = self.config_low
-        if computation_requirement == "med":
+        if self.computation_requirement == "med":
             print("Using medium settings")
             config = self.config_med
-        if computation_requirement == "high":
+        if self.computation_requirement == "high":
             print("Using high settings")
             config = self.config_high
 
         # Load preferred device
-        if device == "cpu":
+        if self.device == "cpu":
             DEVICE = "/cpu:0"
-        if device == "gpu":
+        if self.device == "gpu":
             DEVICE = "/GPU:0"
         else:
             DEVICE = "/cpu:0"
             
-        if object_channel is None:
+        if self.object_channel is None:
             print("No object channel given. Using default.")
             object_channel = "image_data"
             
@@ -122,9 +134,11 @@ class DetectNucleus:
         
         start_time = time.time()
         
-        for img in images:
+        for img in self.images:
             print(img[object_channel]) # returns the image name
             self.results.append([img[object_channel][0], 
+                                 model.detect([img[object_channel][1]], verbose=1)])
+            self.queue.put([img[object_channel][0], 
                                  model.detect([img[object_channel][1]], verbose=1)])
             
         print("--- {} seconds ---".format(time.time() - start_time))
