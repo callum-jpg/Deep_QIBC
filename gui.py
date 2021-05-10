@@ -20,6 +20,7 @@ import time
 
 import load_images
 import detect
+import visualise
 
 import deepspace
 
@@ -310,6 +311,9 @@ class RunDetection:
         self.container = tk.Frame(self.parent)
         self.container.grid(row = row, column = column, sticky='w')
         
+        # Store detection results
+        self.results = []
+        
         # Detection button
         self.btn_detection = tk.Button(self.container, 
                                        text = "Run Detection",
@@ -399,6 +403,8 @@ class RunDetection:
                                        "cpu", 
                                        obj_channel)
         
+        self.results.append(nuclei_detection.results)
+        
         ### Fixing threading?
         ## https://stackoverflow.com/questions/25351488/intermittent-python-thread-error-main-thread-is-not-in-main-loop
         
@@ -475,6 +481,8 @@ class Iterator:
         self.lbl_value["text"] = value - 1
         app.print_iterator(int(self.lbl_value["text"]))
         
+        print(app.detect.results)
+        
 
     def trigger(self):
         #l = ListIterator()
@@ -508,27 +516,95 @@ class IteratorDisplay:
         Method to update the label created by this class
         """
         self.lbl_display["text"] = data
+
         
 class ImageDisplay:
-    def __init__(self, parent, row, column, image):
+    def __init__(self, parent, row, column):
         self.parent = parent
         self.container = tk.Frame(self.parent)
         self.container.grid(row = row, column = column)
         
+        # Create buttons to iterate through plotted images
+        btn_next = tk.Button(self.container, text=">>", command=self.next_img)
+        btn_next.grid(row=2, column=0, sticky="nsew")        
+        
+        btn_prev = tk.Button(self.container, text="<<", command=self.prev_img)
+        btn_prev.grid(row=3, column=0, sticky="nsew")    
+        
+        
+        # Create a placeholder image before detection is run
+        placeholder_img = np.zeros((512, 512, 3))
+        
         self.fig = Figure((5, 5))
         self.ax = self.fig.add_subplot(111)
-        self.ax.imshow(image)
+        # Initisialise with an empty, placeholder image
+        self.ax.imshow(placeholder_img)
+        # Remove padding from around the plotted image
+        self.fig.set_tight_layout(True)
         
         # Change colour of plot background
         # It doesn't seem possible to make it transparent, so match it
         self.fig.patch.set_facecolor(color='lightgray')
-        # Remove padding from around the plotted image
-        self.fig.set_tight_layout(True)
-        
+
         canvas = FigureCanvasTkAgg(self.fig, master=self.container)
         canvas.draw()
         canvas.get_tk_widget().grid(row=0, column=0)
         canvas._tkcanvas.grid(row=1, column=0)
+        
+    def update(self, data, index):
+        """Add the detection data"""
+        self.detection_data = data
+        self.plot(index)
+        
+        
+    def plot(self, index):
+        # img_num = len(detection_data[0])
+        # print(img_num)
+        
+        # Accessing the results - slices in order
+        # [0][0] enter the first list of image data (masks, rois, etc.)
+        # [1] enters the image specific data ([0] would be image filename[0] + image array[1])
+        # [0] iamge data is a dict in a list, so this enters that first dict
+        # 'masks' or whatever else to read the desired data        
+        source_img = self.detection_data[0][index][0][1]
+        masks_img = self.detection_data[0][index][1][0]['masks']  
+        
+        image = visualise.colour_masks(source_img, masks_img)
+
+        self.fig = Figure((5, 5))
+        self.ax = self.fig.add_subplot(111)
+        self.ax.imshow(image)
+        
+        # Remove padding from around the plotted image
+        self.fig.set_tight_layout(True)
+        
+        # Change colour of plot background
+        # It doesn't seem possible to make it transparent, so match it
+        self.fig.patch.set_facecolor(color='lightgray')
+
+
+        canvas = FigureCanvasTkAgg(self.fig, master=self.container)
+        canvas.draw()
+        canvas.get_tk_widget().grid(row=0, column=0)
+        canvas._tkcanvas.grid(row=1, column=0)
+
+        
+    def next_img(self):
+        """Next img"""
+        print("hello, next please")
+        value = 0
+        index = value + 1
+        
+        app.display_image_update(index)
+        
+    def prev_img(self):
+        """Previous img"""
+        print("Wait, what was that last image again?")
+        value = 1
+        index = value - 1
+        
+        app.display_image_update(index)
+
 
 class ListIterator(Thread):
     """
@@ -552,9 +628,6 @@ class ListIterator(Thread):
         for i in range(5):
             time.sleep(0.5)
             self.queue.put(i)
-
-
-
 
 
 class IntergalacticWidget:
@@ -607,6 +680,8 @@ class IntergalacticWidget:
 class DeepQIBCgui(tk.Frame):
     def __init__(self, master, *args, **kwargs):
         self.master = master
+        #self.img = np.ones((200, 400, 3))
+        self.show_image = False
         
         self.browse = BrowseFiles(self.master, 0, 0)
         
@@ -616,24 +691,52 @@ class DeepQIBCgui(tk.Frame):
 
         iterator1 = Iterator(self.master, 1, 1)
         
-        self.detect = RunDetection(self.master, 2, 0)
-
-        # Test image
-        x = np.zeros((200, 200, 3))
-        ImageDisplay(self.master, 0, 2, x)
+        self.detect = RunDetection(self.master, 2, 0)     
+            
+        self.display = ImageDisplay(self.master, 0, 2)
 
         self.intergalactic = IntergalacticWidget(self.master, 5, 1)
-        
         
         # Create a display obect at 1x2 displaying value 0
         self.iterator = IteratorDisplay(self.master, 1, 2, 0)
         
+        #self.master.after(1000, self.update)
+            
+        self.master.after(1000, self.display_image)
+        
+    # def update(self):
+    #     #print("hello")
+    #     self.master.after(1000, self.update)
+        
+    def display_image(self):
+        """
+        Display initial detection data
+        """
+        
+        if len(self.detect.results) > 0 and self.show_image == False:
+            print("plot!")
+            
+            #print(self.detect.results)
+            
+            # ImageDisplay(self.master, 0, 2, image = img)
+            self.display.update(self.detect.results, 0)
+            #self.display.plot(1)
+            self.show_image = True
+
+        print("checking results...")
+        self.master.after(1000, self.display_image)
+        
+    
+    def display_image_update(self, index):
+        self.display.plot(index)
+
     def print_iterator(self, data):
         "Function trggered by a button press"
+        print("this is data:", data)
         self.iterator.update(data)
 
-    def print_iterator1(self, data):
-        disp = IteratorDisplay(self.master, 2, 1, data)
+    # def print_iterator1(self, data):
+    #     disp = IteratorDisplay(self.master, 2, 1, data)
     
         
 if __name__ == "__main__":
