@@ -278,8 +278,8 @@ class DetectNucleus:
         start_time = time.time()
         
         for img in images:
-            print(img[object_channel]) # returns the image name
-            self.results.append([img[object_channel][0], 
+            print(img[object_channel][0]) # returns the image name
+            self.results.append([img[object_channel], 
                                  model.detect([img[object_channel][1]], verbose=1)])
             
         print("--- {} seconds ---".format(time.time() - start_time))
