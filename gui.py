@@ -472,13 +472,23 @@ class Iterator:
         btn_trigger.grid(row=1, column=1, sticky="nsew") 
 
     def increase(self):
+        # value = int(self.lbl_value["text"])
+        # self.lbl_value["text"] = value + 1
+        # app.print_iterator(int(self.lbl_value["text"]))
+        
+        rollover_value = 4
         value = int(self.lbl_value["text"])
-        self.lbl_value["text"] = value + 1
+        self.lbl_value["text"] = (value + 1) % rollover_value
         app.print_iterator(int(self.lbl_value["text"]))
 
     def decrease(self): 
+        # value = int(self.lbl_value["text"])
+        # self.lbl_value["text"] = value - 1
+        # app.print_iterator(int(self.lbl_value["text"]))
+        
+        rollover_value = 4
         value = int(self.lbl_value["text"])
-        self.lbl_value["text"] = value - 1
+        self.lbl_value["text"] = (value - 1) % rollover_value
         app.print_iterator(int(self.lbl_value["text"]))
         
         print(app.detect.results)
@@ -526,11 +536,9 @@ class ImageDisplay:
         
         # Create buttons to iterate through plotted images
         btn_next = tk.Button(self.container, text=">>", command=self.next_img)
-        btn_next.grid(row=2, column=0, sticky="nsew")        
-        
+        btn_next.grid(row=2, column=1, sticky="nsew")        
         btn_prev = tk.Button(self.container, text="<<", command=self.prev_img)
-        btn_prev.grid(row=3, column=0, sticky="nsew")    
-        
+        btn_prev.grid(row=2, column=0, sticky="nsew")    
         
         # Create a placeholder image before detection is run
         placeholder_img = np.zeros((512, 512, 3))
@@ -539,6 +547,12 @@ class ImageDisplay:
         self.ax = self.fig.add_subplot(111)
         # Initisialise with an empty, placeholder image
         self.ax.imshow(placeholder_img)
+        
+        # Why not add object and detection figures into subplots of the same figure?
+        # I preferred how creating two separate figures looked and it seems to work well.
+        # Though a future change could be to see if a nicer solution can be created
+        # using subplots
+        
         # Remove padding from around the plotted image
         self.fig.set_tight_layout(True)
         
@@ -546,64 +560,101 @@ class ImageDisplay:
         # It doesn't seem possible to make it transparent, so match it
         self.fig.patch.set_facecolor(color='lightgray')
 
-        canvas = FigureCanvasTkAgg(self.fig, master=self.container)
-        canvas.draw()
-        canvas.get_tk_widget().grid(row=0, column=0)
-        canvas._tkcanvas.grid(row=1, column=0)
+        # Object channel canvas
+        self.canvas_object = FigureCanvasTkAgg(self.fig, master=self.container)
+        self.canvas_object.draw()
+        self.canvas_object.get_tk_widget().grid(row=0, column=0)
+        self.canvas_object._tkcanvas.grid(row=1, column=0)
         
-    def update(self, data, index):
+        # Detection output canvas
+        self.canvas_detection = FigureCanvasTkAgg(self.fig, master=self.container)
+        self.canvas_detection.draw()
+        self.canvas_detection.get_tk_widget().grid(row=0, column=0)
+        self.canvas_detection._tkcanvas.grid(row=1, column=1)
+        
+        # Store the index of image to show
+        self.slideshow_index = 0
+        
+    def update_data(self, data):
         """Add the detection data"""
         self.detection_data = data
-        self.plot(index)
+    
+    # def update_plot(self, index):
+    #     """Change the index of plot to show"""
+    #     self.plot(index)
+            
         
-        
-    def plot(self, index):
-        # img_num = len(detection_data[0])
-        # print(img_num)
-        
+    def plot(self, index):        
         # Accessing the results - slices in order
         # [0][0] enter the first list of image data (masks, rois, etc.)
         # [1] enters the image specific data ([0] would be image filename[0] + image array[1])
         # [0] iamge data is a dict in a list, so this enters that first dict
-        # 'masks' or whatever else to read the desired data        
+        # 'masks' or whatever else to read the desired data   
         source_img = self.detection_data[0][index][0][1]
         masks_img = self.detection_data[0][index][1][0]['masks']  
-        
+
         image = visualise.colour_masks(source_img, masks_img)
 
-        self.fig = Figure((5, 5))
-        self.ax = self.fig.add_subplot(111)
-        self.ax.imshow(image)
+        # Object channel image
+        self.fig_object = Figure((5, 5))
+        self.ax_object = self.fig_object.add_subplot(111)
+        self.ax_object.imshow(source_img)
+        
+        # Detection image
+        self.fig_detection = Figure((5, 5))
+        self.ax_detection = self.fig_detection.add_subplot(111)
+        self.ax_detection.imshow(image)
         
         # Remove padding from around the plotted image
-        self.fig.set_tight_layout(True)
+        self.fig_object.set_tight_layout(True)
+        self.fig_detection.set_tight_layout(True)
         
         # Change colour of plot background
         # It doesn't seem possible to make it transparent, so match it
-        self.fig.patch.set_facecolor(color='lightgray')
+        self.fig_object.patch.set_facecolor(color='lightgray')
+        self.fig_detection.patch.set_facecolor(color='lightgray')
 
-
-        canvas = FigureCanvasTkAgg(self.fig, master=self.container)
-        canvas.draw()
-        canvas.get_tk_widget().grid(row=0, column=0)
-        canvas._tkcanvas.grid(row=1, column=0)
-
+        # Clear previous canvas
+        #self.canvas.get_tk_widget().pack_forget()
+        self.canvas_clear(self.canvas_object)
+        self.canvas_clear(self.canvas_detection)
         
-    def next_img(self):
+        # Object channel canvas
+        self.canvas_object = FigureCanvasTkAgg(self.fig_object, master=self.container)
+        self.canvas_object.draw()
+        self.canvas_object.get_tk_widget().grid(row=0, column=0)
+        self.canvas_object._tkcanvas.grid(row=1, column=0)
+        
+        # Detection output canvas
+        self.canvas_detection = FigureCanvasTkAgg(self.fig_detection, master=self.container)
+        self.canvas_detection.draw()
+        self.canvas_detection.get_tk_widget().grid(row=0, column=0)
+        self.canvas_detection._tkcanvas.grid(row=1, column=1)
+        
+    def canvas_clear(self, canvas):
+        """"Delete previously plotted canvas"""
+        for item in canvas.get_tk_widget().find_all():
+            print("deleting:", item)
+            canvas.get_tk_widget().delete(item)
+
+    def next_img(self):        
         """Next img"""
-        print("hello, next please")
-        value = 0
-        index = value + 1
-        
-        app.display_image_update(index)
+        # Check the length of image plotting data
+        num_imgs = len(self.detection_data[0])
+        # Rolling over index to first image
+        current_index = self.slideshow_index
+        self.slideshow_index = (current_index + 1) % num_imgs
+        self.plot(self.slideshow_index)
         
     def prev_img(self):
         """Previous img"""
-        print("Wait, what was that last image again?")
-        value = 1
-        index = value - 1
-        
-        app.display_image_update(index)
+        # Check the length of image plotting data
+        num_imgs = len(self.detection_data[0])
+        # Rolling over index to first image
+        current_index = self.slideshow_index
+        self.slideshow_index = (current_index - 1) % num_imgs
+        self.plot(self.slideshow_index)
+
 
 
 class ListIterator(Thread):
@@ -646,6 +697,7 @@ class IntergalacticWidget:
         btn_start.grid(row=1, column=2, sticky="nsew", padx = 20, pady = 20) 
         
         self.shuttle_vector = 5
+
         
     def start(self):
         self.queue = queue.Queue()
@@ -680,12 +732,10 @@ class IntergalacticWidget:
 class DeepQIBCgui(tk.Frame):
     def __init__(self, master, *args, **kwargs):
         self.master = master
-        #self.img = np.ones((200, 400, 3))
+        
         self.show_image = False
         
         self.browse = BrowseFiles(self.master, 0, 0)
-        
-        browse1 = BrowseFiles(self.master, 0, 1)
         
         self.channels = ChannelSelection(self.master, 1, 0)
 
@@ -704,31 +754,25 @@ class DeepQIBCgui(tk.Frame):
             
         self.master.after(1000, self.display_image)
         
-    # def update(self):
-    #     #print("hello")
-    #     self.master.after(1000, self.update)
-        
     def display_image(self):
         """
         Display initial detection data
-        """
         
+        This solution works OK for the first run, but needs to be changed.
+        The show_image bool could be replaced by a more intelligent 'checker'
+        function that checks if the detection data has changed or not. Currently,
+        there is no way to change show_image back to false, thus data can only
+        be updated once.
+        """
         if len(self.detect.results) > 0 and self.show_image == False:
             print("plot!")
-            
-            #print(self.detect.results)
-            
-            # ImageDisplay(self.master, 0, 2, image = img)
-            self.display.update(self.detect.results, 0)
-            #self.display.plot(1)
+            self.display.update_data(self.detect.results)
+            # Show the 0th index plot
+            self.display.plot(0)
             self.show_image = True
 
         print("checking results...")
         self.master.after(1000, self.display_image)
-        
-    
-    def display_image_update(self, index):
-        self.display.plot(index)
 
     def print_iterator(self, data):
         "Function trggered by a button press"
