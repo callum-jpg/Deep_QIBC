@@ -86,6 +86,7 @@ def apply_mask(image, mask, colour):
     # Alpha for the masks
     alpha = 0.5
     
+    masked_image = image.copy()
     
     # The input image for Mask RCNN is rgb, hence image.shape[-1] == 3
     # Moreover, the colour argument represents colours in rgb mode.
@@ -97,12 +98,12 @@ def apply_mask(image, mask, colour):
         # otherwise pixels reamins as image[:,:,channel].
         # In this instance, np.where basically converts the mask array
         # into an array of identical size 
-        image[:,:,channel] = np.where(mask == 1,
-                                image[:,:,channel] * (1 - alpha) +
+        masked_image[:,:,channel] = np.where(mask == 1,
+                                masked_image[:,:,channel] * (1 - alpha) +
                                 alpha * colour[channel] * 255,
-                                image[:,:,channel])
+                                masked_image[:,:,channel])
         
-    return image
+    return masked_image
 
 def colour_masks(image, pred_masks):
     """
@@ -120,10 +121,10 @@ def colour_masks(image, pred_masks):
     for i in range(mask_count):
         i_mask = pred_masks[:,:,i]
         
-        masked_img = apply_mask(image, i_mask, colours[i])
+        masked_img = apply_mask(masked_img, i_mask, colours[i])
         
-    #return masked_img
-    return image
+    return masked_img
+    #return image
     
 # test = colour_masks(res["image"], res["masks"])
 
