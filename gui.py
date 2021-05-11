@@ -21,6 +21,7 @@ import time
 import load_images
 import detect
 import visualise
+import process_images
 
 import deepspace
 
@@ -312,7 +313,7 @@ class RunDetection:
         self.container.grid(row = row, column = column, sticky='w')
         
         # Store detection results
-        self.results = []
+        self.detection_results = []
         
         # Detection button
         self.btn_detection = tk.Button(self.container, 
@@ -403,7 +404,23 @@ class RunDetection:
                                        "cpu", 
                                        obj_channel)
         
-        self.results.append(nuclei_detection.results)
+        self.detection_results.append(nuclei_detection.results)
+        
+        # Load and label masks
+        labelled = process_images.ProcessMasks()
+        
+        labelled.label_masks(nuclei_detection.results)
+        
+        print(labelled.labelled_masks[0]['masks'].max())
+        
+        intensity = process_images.RecordIntensity(images.image_info, labelled.labelled_masks)
+        
+        # Add itentified masks to image_info
+        intensity.consolidate_masks_with_images()
+
+        # data = intensity.record_intensity()
+        
+        # print(data)
         
         ### Fixing threading?
         ## https://stackoverflow.com/questions/25351488/intermittent-python-thread-error-main-thread-is-not-in-main-loop
@@ -491,7 +508,7 @@ class Iterator:
         self.lbl_value["text"] = (value - 1) % rollover_value
         app.print_iterator(int(self.lbl_value["text"]))
         
-        print(app.detect.results)
+        print(app.detect.detection_results)
         
 
     def trigger(self):
@@ -584,7 +601,7 @@ class ImageDisplay:
     #     self.plot(index)
             
         
-    def plot(self, index):        
+    def plot(self, index):
         # Accessing the results - slices in order
         # [0][0] enter the first list of image data (masks, rois, etc.)
         # [1] enters the image specific data ([0] would be image filename[0] + image array[1])
@@ -599,11 +616,13 @@ class ImageDisplay:
         self.fig_object = Figure((5, 5))
         self.ax_object = self.fig_object.add_subplot(111)
         self.ax_object.imshow(source_img)
-        
+        self.ax_object.title.set_text("Source image")
+                
         # Detection image
         self.fig_detection = Figure((5, 5))
         self.ax_detection = self.fig_detection.add_subplot(111)
         self.ax_detection.imshow(image)
+        self.ax_detection.title.set_text("Detected objects")
         
         # Remove padding from around the plotted image
         self.fig_object.set_tight_layout(True)
@@ -654,6 +673,45 @@ class ImageDisplay:
         current_index = self.slideshow_index
         self.slideshow_index = (current_index - 1) % num_imgs
         self.plot(self.slideshow_index)
+        
+class DataVisualisation:
+    def __init__(self, parent, row, column):
+        self.parent = parent
+        self.container = tk.Frame(self.parent)
+        self.container.grid(row = row, column = column)
+        
+        placeholder_img = np.zeros((512, 512, 3))
+        
+        
+
+        x = np.arange(0,4*np.pi,0.1)   # start,stop,step
+        y = np.sin(x)
+
+
+        
+        self.fig = Figure((5, 5))
+        self.ax = self.fig.add_subplot(111)
+        # Initisialise with an empty, placeholder image
+        #self.ax.imshow(placeholder_img)
+        self.ax.plot(x, y)
+        
+        # Why not add object and detection figures into subplots of the same figure?
+        # I preferred how creating two separate figures looked and it seems to work well.
+        # Though a future change could be to see if a nicer solution can be created
+        # using subplots
+        
+        # Remove padding from around the plotted image
+        self.fig.set_tight_layout(True)
+        
+        # Change colour of plot background
+        # It doesn't seem possible to make it transparent, so match it
+        self.fig.patch.set_facecolor(color='lightgray')
+
+        # Object channel canvas
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.container)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().grid(row=0, column=0)
+        self.canvas._tkcanvas.grid(row=1, column=0)
 
 
 
@@ -744,11 +802,13 @@ class DeepQIBCgui(tk.Frame):
         self.detect = RunDetection(self.master, 2, 0)     
             
         self.display = ImageDisplay(self.master, 0, 2)
+        
+        self.data_vis = DataVisualisation(self.master, 1, 2)
 
         self.intergalactic = IntergalacticWidget(self.master, 5, 1)
         
         # Create a display obect at 1x2 displaying value 0
-        self.iterator = IteratorDisplay(self.master, 1, 2, 0)
+        self.iterator = IteratorDisplay(self.master, 2, 2, 0)
         
         #self.master.after(1000, self.update)
             
@@ -764,9 +824,9 @@ class DeepQIBCgui(tk.Frame):
         there is no way to change show_image back to false, thus data can only
         be updated once.
         """
-        if len(self.detect.results) > 0 and self.show_image == False:
+        if len(self.detect.detection_results) > 0 and self.show_image == False:
             print("plot!")
-            self.display.update_data(self.detect.results)
+            self.display.update_data(self.detect.detection_results)
             # Show the 0th index plot
             self.display.plot(0)
             self.show_image = True
