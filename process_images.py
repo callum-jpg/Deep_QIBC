@@ -97,6 +97,8 @@ class RecordIntensity(object):
             self.channels = ["image_data"]
         else:
             self.channels = channels
+            
+        #print(self.masks)
         
     def consolidate_masks_with_images(self, object_channel=None):
         """
@@ -117,9 +119,13 @@ class RecordIntensity(object):
         
         for img in self.image_info:
             for mask in self.masks:
-                #print(mask['image name'])
-                if img[object_channel][0] == mask['image name']:
-                    print("hit", mask['image name'])
+                #print("this is a mask from self.masks:", mask)
+                
+                # print(img[object_channel][0])
+                #print(img[object_channel][0])
+                # Check that the filenames match
+                if img[object_channel][0] == mask['image name'][0]:
+                    print("hit", mask['image name'][0])
                     img.update({'masks': mask['masks']})
 
     def record_intensity(self):
@@ -180,15 +186,18 @@ class RecordIntensity(object):
 
 # images.load_images(image_dir)
 
+    
+# #%%
 # # Run detection
 # nuclei_detection = detect.DetectNucleus()
 
 # # Select channel to run detection on (in this case, DAPI)
 # object_channel = images.channels[0]
 
-# nuclei_detection.run_detection(images.image_info, object_channel, "low", "cpu")
+# nuclei_detection.run_detection(images.image_info, "low", "cpu", object_channel)
 
 # nuclei_detection.results
+
 
 # #%%
 # # Load and label masks
@@ -200,10 +209,17 @@ class RecordIntensity(object):
 
 # #%%
 
-# intensity = RecordIntensity()
+# intensity = RecordIntensity(images.image_info, labelled.labelled_masks, ["w1DAPI", "w2Cy5", "w3mCherry", "w4GFP"])
 
 # # Add itentified masks to image_info
-# intensity.consolidate_masks_with_images('w1DAPI')
+# intensity.consolidate_masks_with_images("w1DAPI")
+
+# data = intensity.record_intensity()
+
+# #%%
+
+# for i in intensity.masks:
+#     print(i['masks'])
 
 # #%%
 
@@ -262,7 +278,40 @@ class RecordIntensity(object):
 
 # get_close_matches(word, possibilities)
 
+# #%% Test run with 1x channel
 
+# # Load images
+# images = load_images.LoadImages()
 
+# image_dir = "2xdapi"
 
+# images.load_images(image_dir)
+
+# #%%
+# # Run detection
+# nuclei_detection = detect.DetectNucleus()
+
+# nuclei_detection.run_detection(images.image_info, "low", "cpu")
+
+# nuclei_detection.results
+
+# #%%
+# # Load and label masks
+# labelled = ProcessMasks()
+
+# labelled.label_masks(nuclei_detection.results)
+
+# labelled.labelled_masks[0]['masks'].max()
+
+# #%%
+
+# intensity = RecordIntensity(images.image_info, labelled.labelled_masks)
+
+# # Add itentified masks to image_info
+# intensity.consolidate_masks_with_images()
+
+# data = intensity.record_intensity()
+
+# data["image_data_total_intensity"]
+# data["image_data_mean_intensity"]
 

@@ -118,12 +118,6 @@ class ChannelSelection:
         self.lbl_channel = tk.Label(self.container, 
                                           text = "Select number of channels:")
         
-        
-
-                # self.channel_box = tk.Label(self.container,
-                #                             text = "channel {}".format(channel))
-                # self.channel_box.grid(row = channel, column = 0)
-        
         self.channel_option = tk.OptionMenu(self.container,
                                             self.channel_count,
                                             *self.channel_options,
@@ -400,9 +394,9 @@ class RunDetection:
         nuclei_detection = detect.DetectNucleus()
         
         nuclei_detection.run_detection(images.image_info, 
-                                       "low", 
-                                       "cpu", 
-                                       obj_channel)
+                                        "low", 
+                                        "cpu", 
+                                        obj_channel)
         
         self.detection_results.append(nuclei_detection.results)
         
@@ -411,16 +405,18 @@ class RunDetection:
         
         labelled.label_masks(nuclei_detection.results)
         
-        print(labelled.labelled_masks[0]['masks'].max())
+        # print(labelled.labelled_masks[0]['masks'].max())
         
         intensity = process_images.RecordIntensity(images.image_info, labelled.labelled_masks)
         
         # Add itentified masks to image_info
-        intensity.consolidate_masks_with_images()
+        intensity.consolidate_masks_with_images(obj_channel)
 
-        # data = intensity.record_intensity()
+        data = intensity.record_intensity()
         
-        # print(data)
+        # Pass data to data visualisation widget
+        app.data_vis.update_data(data)
+        
         
         ### Fixing threading?
         ## https://stackoverflow.com/questions/25351488/intermittent-python-thread-error-main-thread-is-not-in-main-loop
@@ -674,31 +670,34 @@ class ImageDisplay:
         self.slideshow_index = (current_index - 1) % num_imgs
         self.plot(self.slideshow_index)
         
+
+
 class DataVisualisation:
     def __init__(self, parent, row, column):
         self.parent = parent
         self.container = tk.Frame(self.parent)
         self.container.grid(row = row, column = column)
         
-        placeholder_img = np.zeros((512, 512, 3))
+        self.x_value = tk.StringVar(value = "NA")
         
+        self.x_option = tk.OptionMenu(self.container,
+                                      self.x_value, 
+                                      "",
+                                      command = self.update_plot)
         
-
-        x = np.arange(0,4*np.pi,0.1)   # start,stop,step
+        self.x_option.grid(row = 1, column = 0, sticky="nsew")     
+        #self.x_option.config(state="disabled")
+      
+        
+        # Simple placeholder data
+        x = np.arange(0, 4*np.pi, 0.1)
         y = np.sin(x)
-
-
         
         self.fig = Figure((5, 5))
         self.ax = self.fig.add_subplot(111)
         # Initisialise with an empty, placeholder image
         #self.ax.imshow(placeholder_img)
         self.ax.plot(x, y)
-        
-        # Why not add object and detection figures into subplots of the same figure?
-        # I preferred how creating two separate figures looked and it seems to work well.
-        # Though a future change could be to see if a nicer solution can be created
-        # using subplots
         
         # Remove padding from around the plotted image
         self.fig.set_tight_layout(True)
@@ -711,9 +710,76 @@ class DataVisualisation:
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.container)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=0)
-        self.canvas._tkcanvas.grid(row=1, column=0)
+        self.canvas._tkcanvas.grid(row=0, column=0)
 
+    def update_data(self, data):
+        """Receives data from the RunDetection class"""
+        self.detection_data = data
+        
+        self.detection_data_cols = [k for k in self.detection_data.keys()][2:]
 
+        # Plot 2nd (x) and 3rd (y, colour) coloumns
+        self.plot(self.detection_data[self.detection_data_cols[0]], 
+                  self.detection_data[self.detection_data_cols[1]], 
+                  self.detection_data[self.detection_data_cols[1]])
+        
+        # Remove all old dropdown options
+        self.x_option['menu'].delete(0, tk.END)
+        
+        # Set the default column to the first data column in data
+        self.x_value.set(self.detection_data_cols[0])
+        
+        # Given the new influx of data, update the axis dropdowns with the
+        # column names provided [2:]. Columns 0:2 are image number and object number
+        # for col in self.detection_data_cols:
+        #         self.x_option['menu'].add_command(label = col, 
+        #                                     command = lambda column=col: self.x_value.set(column))
+        
+        # Understanding tk._setit: https://stackoverflow.com/questions/51079091/optionmenu-loses-command-when-updated
+        for col in self.detection_data_cols:
+                self.x_option['menu'].add_command(label = col,
+                                                  command = tk._setit(self.x_value, col, self.update_plot))       
+
+    def update_plot(self, _):
+        """Reads currently selected x, y and colour and updates the plot"""
+        print("updating...")
+        self.plot(self.detection_data[self.x_value.get()], 
+                  self.detection_data[self.detection_data_cols[1]],
+                  self.detection_data[self.detection_data_cols[1]])
+    
+    
+    def plot(self, x, y, colour):
+        """plot QIBC data"""
+        
+        # Object channel image
+        self.fig = Figure((5, 5))
+        self.ax = self.fig.add_subplot(111)
+        self.ax.scatter(x=x, y=y, c=colour)
+        self.ax.title.set_text("Data")
+        
+        # Remove padding from around the plotted image
+        self.fig.set_tight_layout(True)
+        
+        # Change colour of plot background
+        # It doesn't seem possible to make it transparent, so match it
+        self.fig.patch.set_facecolor(color='lightgray')
+
+        # Clear previous canvas
+        #self.canvas.get_tk_widget().pack_forget()
+        self.canvas_clear(self.canvas)
+        
+        # Object channel canvas
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.container)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().grid(row=0, column=0)
+        self.canvas._tkcanvas.grid(row=0, column=0)
+        
+        
+    def canvas_clear(self, canvas):
+        """"Delete previously plotted canvas"""
+        for item in canvas.get_tk_widget().find_all():
+            print("deleting:", item)
+            canvas.get_tk_widget().delete(item)
 
 class ListIterator(Thread):
     """
