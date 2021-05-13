@@ -9,6 +9,8 @@ from PIL import ImageTk
 from threading import Thread
 import queue
 import numpy as np
+import pandas as pd
+
 
 import matplotlib
 matplotlib.use('Agg')
@@ -56,6 +58,9 @@ class BrowseFiles:
                     self.dir_contents.insert(tk.END, file)
 
                     self.image_paths.append(os.path.join(self.foldername, file))
+                                # Enable detection button 
+            # Check button state
+            app.detect.detect_btn_state()
 
         
         def open_image_selection(_selection):
@@ -100,7 +105,46 @@ class BrowseFiles:
         self.lbl_explorer.grid(row = 0, column = 0)
         self.btn_browse.grid(row = 0, column = 1)
         self.dir_contents.grid(row = 1, column = 0)
+        
+class SaveData:
+    def __init__(self, parent, row, column):
+        self.parent = parent
+        self.container = tk.Frame(self.parent)
+        self.container.grid(row = row, column = column)
+        
+        # Empty string that will be updated with the selected save directory, if desired
+        self.foldername = []
+        
+        # Textbox to display selected directory
+        self.lbl_explorer = tk.Label(
+            master = self.container, 
+            text = "Select a data save directory", 
+            width = 75,
+            bg = "white")
+        
+        # Browse files button
+        #browse = tk.Frame(master = window)
+        self.btn_browse = tk.Button(
+            master = self.container, 
+            width = 20, 
+            text = "Browse",
+            command = self.browse_folders)
 
+        # Position the explorer and button within self.container
+        self.lbl_explorer.grid(row = 0, column = 0)
+        self.btn_browse.grid(row = 0, column = 1)
+        
+    def browse_folders(self):
+        """
+        Browse folders for a save directory
+        """
+        self.foldername = filedialog.askdirectory()
+        if len(self.foldername):
+            # Display selected folder to save data
+            self.lbl_explorer.configure(text="Saving data in: "+self.foldername)
+
+
+        
 
 class ChannelSelection:
     def __init__(self, parent, row, column):
@@ -166,11 +210,12 @@ class ChannelSelection:
         
         # Object channel selection
         self.object_channel = tk.IntVar(value=1)
+        self.lbl_obj_channel = tk.Label(self.container, text="Select object channel:")
         self.object_sel = tk.OptionMenu(self.container, self.object_channel, '')
         self.object_sel.config(state="disabled")
-        self.object_sel.grid(row = 10, column=0)
+        self.object_sel.grid(row = 10, column=1, sticky="w")
+        self.lbl_obj_channel.grid(row=10, column=0, sticky="e")
 #tk.OptionMenu(master, variable, value, values, kwargs)
-
 
         # Placing channel selection
         self.lbl_channel.grid(row = 2, column = 0, sticky="nsew")
@@ -312,10 +357,13 @@ class RunDetection:
         # Detection button
         self.btn_detection = tk.Button(self.container, 
                                        text = "Run Detection",
-                                       state = "normal",
+                                       state = tk.DISABLED,
                                        command = self.run_detection)
-        #self.btn_detection.config(state=tk.DISABLED)
-        self.btn_detection.grid(row=0,column=0)
+        
+        self.lbl_detection = tk.Label(self.container, text="Select img directory")
+        
+        self.btn_detection.grid(row=0, column=0, sticky="e")
+        self.lbl_detection.grid(row=0, column=1, sticky="w")
     
         
     # *args allows run_detection to accept the output from tk.trace
@@ -343,21 +391,23 @@ class RunDetection:
         
         # print(app.channels.channel1.get())
 
-        if channels == 1:
+        if (channels == 1
+            and app.browse.dir_contents.size()):
             self.btn_detection.config(state=tk.NORMAL)
+            self.lbl_detection.configure(text="")
 
         elif (channels == 2 
             and len(app.channels.channel1.get()) > 0
             and len(app.channels.channel2.get()) > 0):
             self.btn_detection.config(state="normal")
+            self.lbl_detection.configure(text="")
 
-            
-            
         elif (channels == 3 
             and len(app.channels.channel1.get()) > 0
             and len(app.channels.channel2.get()) > 0
             and len(app.channels.channel3.get()) > 0):
             self.btn_detection.config(state="normal")
+            self.lbl_detection.configure(text="")
 
         elif (channels == 4 
             and len(app.channels.channel1.get()) > 0
@@ -365,9 +415,12 @@ class RunDetection:
             and len(app.channels.channel3.get()) > 0
             and len(app.channels.channel4.get()) > 0):
             self.btn_detection.config(state="normal")
+            self.lbl_detection.configure(text="")
 
-        else: 
+        elif not app.browse.dir_contents.size(): 
+            print("hello there")
             self.btn_detection.config(state=tk.DISABLED)
+            self.lbl_detection.configure(text="No imgs found in selected folder")
         
     def run_detection(self):
         self.queue = queue.Queue()
@@ -377,9 +430,15 @@ class RunDetection:
                                app.channels.channel2.get(),
                                app.channels.channel3.get(),
                                app.channels.channel4.get()))
-        
+    
+
         # Remove empty string from channels
         unique_ch_names = [ch for ch in unique_ch_names if ch]    
+        
+        if unique_ch_names:
+            channels = unique_ch_names
+        else:
+            channels = None
         
         images = load_images.LoadImages()
         images.add_channels(unique_ch_names)
@@ -387,6 +446,7 @@ class RunDetection:
         
         if len(unique_ch_names) > 0:
             selected_obj = app.channels.object_channel.get()
+            # Get delineating string that corresponds to the object channel
             obj_channel = unique_ch_names[selected_obj - 1]
         else:
             obj_channel = None
@@ -407,7 +467,9 @@ class RunDetection:
         
         # print(labelled.labelled_masks[0]['masks'].max())
         
-        intensity = process_images.RecordIntensity(images.image_info, labelled.labelled_masks)
+        intensity = process_images.RecordIntensity(images.image_info, 
+                                                   labelled.labelled_masks,
+                                                   channels)
         
         # Add itentified masks to image_info
         intensity.consolidate_masks_with_images(obj_channel)
@@ -416,6 +478,12 @@ class RunDetection:
         
         # Pass data to data visualisation widget
         app.data_vis.update_data(data)
+        
+        # Save data if directory selected
+        if len(app.save_data.foldername):
+            df = pd.DataFrame(data=data)
+            df.to_csv("deepQIBC_data.csv", index=False)
+            
         
         
         ### Fixing threading?
@@ -598,6 +666,9 @@ class ImageDisplay:
             
         
     def plot(self, index):
+        """Plot the desired result following running of the RunDetection class
+        
+        index: an int that is found in the range of RunDetection.results"""
         # Accessing the results - slices in order
         # [0][0] enter the first list of image data (masks, rois, etc.)
         # [1] enters the image specific data ([0] would be image filename[0] + image array[1])
@@ -647,7 +718,11 @@ class ImageDisplay:
         self.canvas_detection._tkcanvas.grid(row=1, column=1)
         
     def canvas_clear(self, canvas):
-        """"Delete previously plotted canvas"""
+        """"
+        Delete previously plotted canvas
+        
+        canvas: a FigureCanvasTkAgg object
+        """
         for item in canvas.get_tk_widget().find_all():
             print("deleting:", item)
             canvas.get_tk_widget().delete(item)
@@ -713,7 +788,11 @@ class DataVisualisation:
         self.canvas._tkcanvas.grid(row=0, column=0)
 
     def update_data(self, data):
-        """Receives data from the RunDetection class"""
+        """Receives data from the RunDetection class and updates the 
+        dropdown accordingly
+        
+        data: RunDetection data following intensity.consolidate_masks_with_images
+        and intensity.record_intensity transformations"""
         self.detection_data = data
         
         self.detection_data_cols = [k for k in self.detection_data.keys()][2:]
@@ -723,19 +802,23 @@ class DataVisualisation:
                   self.detection_data[self.detection_data_cols[1]], 
                   self.detection_data[self.detection_data_cols[1]])
         
-        # Remove all old dropdown options
+        # Clear all old dropdown options
         self.x_option['menu'].delete(0, tk.END)
         
         # Set the default column to the first data column in data
         self.x_value.set(self.detection_data_cols[0])
         
-        # Given the new influx of data, update the axis dropdowns with the
-        # column names provided [2:]. Columns 0:2 are image number and object number
-        # for col in self.detection_data_cols:
-        #         self.x_option['menu'].add_command(label = col, 
-        #                                     command = lambda column=col: self.x_value.set(column))
+        # In essence, the tk._setit function allows for a new value to be added
+        # to the OptionMenu 'menu' variable and to call the command
+        # self.update_plot when the new value (col) as an argument. _setit
+        # accepts three arguments: the variable, the value to be added (col) and
+        # the command to be executed upon value selection. It's lovely
         
-        # Understanding tk._setit: https://stackoverflow.com/questions/51079091/optionmenu-loses-command-when-updated
+        # _setit is required as add_command used here overwrites previous
+        # commands issued to the OptionMenu. 
+        
+        # Every time a new option is selected in the OptionMenu, update_plot
+        # is called to update the data visualisation. 
         for col in self.detection_data_cols:
                 self.x_option['menu'].add_command(label = col,
                                                   command = tk._setit(self.x_value, col, self.update_plot))       
@@ -876,7 +959,7 @@ class DeepQIBCgui(tk.Frame):
         # Create a display obect at 1x2 displaying value 0
         self.iterator = IteratorDisplay(self.master, 2, 2, 0)
         
-        #self.master.after(1000, self.update)
+        self.save_data = SaveData(self.master, 3, 0)
             
         self.master.after(1000, self.display_image)
         
