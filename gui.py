@@ -753,15 +753,29 @@ class DataVisualisation:
         self.container = tk.Frame(self.parent)
         self.container.grid(row = row, column = column)
         
+        # StringVar to hold column titles to be plotted
         self.x_value = tk.StringVar(value = "NA")
+        self.y_value = tk.StringVar(value = "NA")
+        self.colour_value = tk.StringVar(value = "NA")
         
         self.x_option = tk.OptionMenu(self.container,
                                       self.x_value, 
                                       "",
                                       command = self.update_plot)
         
+        self.y_option = tk.OptionMenu(self.container,
+                                      self.y_value, 
+                                      "",
+                                      command = self.update_plot)
+                
+        self.colour_option = tk.OptionMenu(self.container,
+                                      self.colour_value, 
+                                      "",
+                                      command = self.update_plot)
+        
         self.x_option.grid(row = 1, column = 0, sticky="nsew")     
-        #self.x_option.config(state="disabled")
+        self.y_option.grid(row = 2, column = 0, sticky="nsew")  
+        self.colour_option.grid(row = 3, column = 0, sticky="nsew")  
       
         
         # Simple placeholder data
@@ -793,20 +807,25 @@ class DataVisualisation:
         
         data: RunDetection data following intensity.consolidate_masks_with_images
         and intensity.record_intensity transformations"""
+        
         self.detection_data = data
         
+        # Slice from [2:] since columns 0:2 are image number and object number
         self.detection_data_cols = [k for k in self.detection_data.keys()][2:]
+        
+        # Set some default values for x and y to plot
+        self.x_value.set(self.detection_data_cols[0])
+        self.y_value.set(self.detection_data_cols[1])
+        self.colour_value.set("None")
 
         # Plot 2nd (x) and 3rd (y, colour) coloumns
-        self.plot(self.detection_data[self.detection_data_cols[0]], 
-                  self.detection_data[self.detection_data_cols[1]], 
-                  self.detection_data[self.detection_data_cols[1]])
+        self.plot(self.detection_data[self.x_value.get()], 
+                  self.detection_data[self.y_value.get()])
         
-        # Clear all old dropdown options
+        # Clear all old dropdown options from previous detections
         self.x_option['menu'].delete(0, tk.END)
-        
-        # Set the default column to the first data column in data
-        self.x_value.set(self.detection_data_cols[0])
+        self.y_option['menu'].delete(0, tk.END)
+        self.colour_option['menu'].delete(0, tk.END)
         
         # In essence, the tk._setit function allows for a new value to be added
         # to the OptionMenu 'menu' variable and to call the command
@@ -821,24 +840,43 @@ class DataVisualisation:
         # is called to update the data visualisation. 
         for col in self.detection_data_cols:
                 self.x_option['menu'].add_command(label = col,
-                                                  command = tk._setit(self.x_value, col, self.update_plot))       
+                                                  command = tk._setit(self.x_value, col, self.update_plot))
+                
+                self.y_option['menu'].add_command(label = col,
+                                                  command = tk._setit(self.y_value, col, self.update_plot))
+                
+        for col in ["None"] + self.detection_data_cols:
+                self.colour_option['menu'].add_command(label = col,
+                                                  command = tk._setit(self.colour_value, col, self.update_plot)) 
+                
+                
+                
+        if self.colour_value.get() == None:
+            print("none no quotes")
+        elif self.colour_value.get() == "None":
+            print("none WITH quotes")
+        else:
+            print("its neither!")
 
     def update_plot(self, _):
         """Reads currently selected x, y and colour and updates the plot"""
         print("updating...")
         self.plot(self.detection_data[self.x_value.get()], 
-                  self.detection_data[self.detection_data_cols[1]],
-                  self.detection_data[self.detection_data_cols[1]])
+                  self.detection_data[self.y_value.get()],
+                  (self.detection_data[self.colour_value.get()]) if self.colour_value.get() != "None" else None)
     
-    
-    def plot(self, x, y, colour):
+    def plot(self, x, y, colour = None):
         """plot QIBC data"""
         
         # Object channel image
         self.fig = Figure((5, 5))
         self.ax = self.fig.add_subplot(111)
-        self.ax.scatter(x=x, y=y, c=colour)
+        
+        self.ax.scatter(x = x, 
+                        y = y, 
+                        c = colour)
         self.ax.title.set_text("Data")
+        self.ax.set_xlabel(self.x_value.get())
         
         # Remove padding from around the plotted image
         self.fig.set_tight_layout(True)
@@ -946,21 +984,21 @@ class DeepQIBCgui(tk.Frame):
         
         self.channels = ChannelSelection(self.master, 1, 0)
 
-        iterator1 = Iterator(self.master, 1, 1)
+        # iterator1 = Iterator(self.master, 1, 1)
         
-        self.detect = RunDetection(self.master, 2, 0)     
+        self.save_data = SaveData(self.master, 2, 0)
+        
+        self.detect = RunDetection(self.master, 3, 0)     
             
         self.display = ImageDisplay(self.master, 0, 2)
         
         self.data_vis = DataVisualisation(self.master, 1, 2)
 
-        self.intergalactic = IntergalacticWidget(self.master, 5, 1)
+        # self.intergalactic = IntergalacticWidget(self.master, 5, 1)
         
         # Create a display obect at 1x2 displaying value 0
-        self.iterator = IteratorDisplay(self.master, 2, 2, 0)
-        
-        self.save_data = SaveData(self.master, 3, 0)
-            
+        # self.iterator = IteratorDisplay(self.master, 2, 2, 0)
+
         self.master.after(1000, self.display_image)
         
     def display_image(self):
