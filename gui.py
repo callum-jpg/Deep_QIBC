@@ -14,7 +14,8 @@ import pandas as pd
 
 import matplotlib
 matplotlib.use('Agg')
-from matplotlib.figure import Figure
+
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 
@@ -166,6 +167,7 @@ class ChannelSelection:
                                             self.channel_count,
                                             *self.channel_options,
                                             command = self.spawn_channels)
+       
         
         # All of this channel stuff is messy. Perhaps all of these elements
         # should be stored in a dictionary? eg. dict["ch1"] would contain
@@ -361,9 +363,30 @@ class RunDetection:
                                        command = self.run_detection)
         
         self.lbl_detection = tk.Label(self.container, text="Select img directory")
+
+        # Computation level selection
+        self.lbl_computation = tk.Label(self.container, text = "Select computation level")
+        self.computation_level = tk.StringVar(value = "low")
+        self.computation_selection = tk.OptionMenu(self.container,
+                                                   self.computation_level,
+                                                   *["low", "med", "high"])  
         
-        self.btn_detection.grid(row=0, column=0, sticky="e")
-        self.lbl_detection.grid(row=0, column=1, sticky="w")
+        # GPU/CPU selection
+        self.lbl_cpu_gpu = tk.Label(self.container, text = "Select device to run deepQIBC on")
+        self.cpu_gpu = tk.StringVar(value = "cpu")
+        self.cpu_gpu_selection = tk.OptionMenu(self.container,
+                                               self.cpu_gpu,
+                                               *["cpu", "gpu"]) 
+          
+                
+        self.computation_selection.grid(row = 0, column = 0, sticky="nsew")
+        self.lbl_computation.grid(row = 0, column = 1, sticky="w")
+        
+        self.cpu_gpu_selection.grid(row = 1, column = 0, sticky="nsew")
+        self.lbl_cpu_gpu.grid(row = 1, column = 1, sticky="w")
+        
+        self.btn_detection.grid(row=2, column=0, sticky="e")
+        self.lbl_detection.grid(row=2, column=1, sticky="w")
     
         
     # *args allows run_detection to accept the output from tk.trace
@@ -454,8 +477,10 @@ class RunDetection:
         nuclei_detection = detect.DetectNucleus()
         
         nuclei_detection.run_detection(images.image_info, 
-                                        "low", 
-                                        "cpu", 
+                                        #"low", 
+                                        self.computation_level.get(),
+                                        #"cpu", 
+                                        self.cpu_gpu.get(),
                                         obj_channel)
         
         self.detection_results.append(nuclei_detection.results)
@@ -613,7 +638,7 @@ class ImageDisplay:
     def __init__(self, parent, row, column):
         self.parent = parent
         self.container = tk.Frame(self.parent)
-        self.container.grid(row = row, column = column)
+        self.container.grid(row = row, column = column, sticky = "n")
         
         # Create buttons to iterate through plotted images
         btn_next = tk.Button(self.container, text=">>", command=self.next_img)
@@ -624,7 +649,7 @@ class ImageDisplay:
         # Create a placeholder image before detection is run
         placeholder_img = np.zeros((512, 512, 3))
         
-        self.fig = Figure((5, 5))
+        self.fig = plt.Figure((4, 4))
         self.ax = self.fig.add_subplot(111)
         # Initisialise with an empty, placeholder image
         self.ax.imshow(placeholder_img)
@@ -680,13 +705,13 @@ class ImageDisplay:
         image = visualise.colour_masks(source_img, masks_img)
 
         # Object channel image
-        self.fig_object = Figure((5, 5))
+        self.fig_object = plt.Figure((4, 4))
         self.ax_object = self.fig_object.add_subplot(111)
         self.ax_object.imshow(source_img)
         self.ax_object.title.set_text("Source image")
                 
         # Detection image
-        self.fig_detection = Figure((5, 5))
+        self.fig_detection = plt.Figure((4, 4))
         self.ax_detection = self.fig_detection.add_subplot(111)
         self.ax_detection.imshow(image)
         self.ax_detection.title.set_text("Detected objects")
@@ -753,10 +778,20 @@ class DataVisualisation:
         self.container = tk.Frame(self.parent)
         self.container.grid(row = row, column = column)
         
+        # Label above axes option menus
+        self.lbl_axis = tk.Label(self.container, text = "Select plotting axes:")
+        
+        
+        # Labels for axes dropdowns
+        self.lbl_x = tk.Label(self.container, text = "X-axis:")
+        self.lbl_y = tk.Label(self.container, text = "Y-axis:")
+        self.lbl_colour = tk.Label(self.container, text = "Point colour:")
+        
         # StringVar to hold column titles to be plotted
         self.x_value = tk.StringVar(value = "NA")
         self.y_value = tk.StringVar(value = "NA")
         self.colour_value = tk.StringVar(value = "NA")
+    
         
         self.x_option = tk.OptionMenu(self.container,
                                       self.x_value, 
@@ -773,16 +808,70 @@ class DataVisualisation:
                                       "",
                                       command = self.update_plot)
         
-        self.x_option.grid(row = 1, column = 0, sticky="nsew")     
-        self.y_option.grid(row = 2, column = 0, sticky="nsew")  
-        self.colour_option.grid(row = 3, column = 0, sticky="nsew")  
+        self.lbl_axis.grid(row = 1, column = 1, sticky="nsew")
+        
+        self.lbl_x.grid(row = 2, column = 0, sticky="e")     
+        self.x_option.grid(row = 2, column = 1, sticky="nsew")  
+        
+        self.lbl_y.grid(row = 3, column = 0, sticky="e") 
+        self.y_option.grid(row = 3, column = 1, sticky="nsew")   
+
+        self.lbl_colour.grid(row = 4, column = 0, sticky="e") 
+        self.colour_option.grid(row = 4, column = 1, sticky="nsew")  
+        
+        
+        ## Editing plot limits
+        # Min/max label
+        self.lbl_min = tk.Label(self.container, text = "min")
+        self.lbl_max = tk.Label(self.container, text = "max")
+        self.lbl_min.grid(row = 1, column = 2, sticky="nsew")
+        self.lbl_max.grid(row = 1, column = 3, sticky="nsew")
+        
+        # register allows us to execute the validate_input function upon user input
+        # self.validate is then used as a callback function
+        self.validate = self.container.register(self.validate_input)
+        
+        # x limits
+        # min/max must be string var to allow for floats
+        self.x_min = tk.StringVar(value = None)
+        self.entry_x_min = tk.Entry(self.container, textvariable= self.x_min,
+                                    validate = "key", 
+                                    validatecommand=(self.validate, "%P"))
+        
+        self.entry_x_min.grid(row = 2, column = 2, ipady=2)
       
+        self.x_max = tk.StringVar(value = None)
+        self.entry_x_max = tk.Entry(self.container, textvariable= self.x_max)
+        self.entry_x_max.grid(row = 2, column = 3, ipady=2)
+        
+        # y limits
+        self.y_min = tk.StringVar(value = None)
+        self.entry_y_min = tk.Entry(self.container, textvariable= self.y_min)
+        self.entry_y_min.grid(row = 3, column = 2, ipady=2)
+      
+        self.y_max = tk.StringVar(value = None)
+        self.entry_y_max = tk.Entry(self.container, textvariable= self.y_max)
+        self.entry_y_max.grid(row = 3, column = 3, ipady=2)
+        
+        # colour limits
+        self.colour_min = tk.StringVar(value = None)
+        self.entry_colour_min = tk.Entry(self.container, textvariable= self.colour_min)
+        self.entry_colour_min.grid(row = 4, column = 2, ipady=2)
+      
+        self.colour_max = tk.StringVar(value = None)
+        self.entry_colour_max = tk.Entry(self.container, textvariable= self.colour_max)
+        self.entry_colour_max.grid(row = 4, column = 3, ipady=2)
+        
+        # Update plot limits button
+        self.btn_update_limits = tk.Button(self.container, text = "Update plot limits",
+                                           command = self.update_plot_limits)
+        self.btn_update_limits.grid(row = 5, column = 2, columnspan = 2)
         
         # Simple placeholder data
         x = np.arange(0, 4*np.pi, 0.1)
         y = np.sin(x)
         
-        self.fig = Figure((5, 5))
+        self.fig = plt.Figure((4, 4))
         self.ax = self.fig.add_subplot(111)
         # Initisialise with an empty, placeholder image
         #self.ax.imshow(placeholder_img)
@@ -799,7 +888,16 @@ class DataVisualisation:
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.container)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=0)
-        self.canvas._tkcanvas.grid(row=0, column=0)
+        self.canvas._tkcanvas.grid(row=0, column=1, columnspan = 3)
+            
+    def validate_input(self, x):
+        """Validate that user input is a float"""
+        try:
+            # Check if x is either length 0 or a float
+            x == "" or float(x)
+            return True
+        except:
+            return False
 
     def update_data(self, data):
         """Receives data from the RunDetection class and updates the 
@@ -817,10 +915,20 @@ class DataVisualisation:
         self.x_value.set(self.detection_data_cols[0])
         self.y_value.set(self.detection_data_cols[1])
         self.colour_value.set("None")
-
+        
         # Plot 2nd (x) and 3rd (y, colour) coloumns
         self.plot(self.detection_data[self.x_value.get()], 
                   self.detection_data[self.y_value.get()])
+        
+        # Set min/max axis values based on what is selected by matplotlib
+        self.x_min.set(self.ax.get_xlim()[0])
+        self.x_max.set(self.ax.get_xlim()[1])
+        self.y_min.set(self.ax.get_ylim()[0])
+        self.y_max.set(self.ax.get_ylim()[1])
+        
+        # self.colour_min.set(self.ax.get_clim()[0])
+        # self.colour_max.set(self.ax.get_clim()[1])
+        #print(self.detection_data[self.x_value.get()])
         
         # Clear all old dropdown options from previous detections
         self.x_option['menu'].delete(0, tk.END)
@@ -845,39 +953,69 @@ class DataVisualisation:
                 self.y_option['menu'].add_command(label = col,
                                                   command = tk._setit(self.y_value, col, self.update_plot))
                 
+        # Add "None" to the list of options for point colour
         for col in ["None"] + self.detection_data_cols:
                 self.colour_option['menu'].add_command(label = col,
                                                   command = tk._setit(self.colour_value, col, self.update_plot)) 
-                
-                
-                
-        if self.colour_value.get() == None:
-            print("none no quotes")
-        elif self.colour_value.get() == "None":
-            print("none WITH quotes")
-        else:
-            print("its neither!")
 
     def update_plot(self, _):
         """Reads currently selected x, y and colour and updates the plot"""
         print("updating...")
-        self.plot(self.detection_data[self.x_value.get()], 
+        self.plot(self.detection_data[self.x_value.get()],
                   self.detection_data[self.y_value.get()],
                   (self.detection_data[self.colour_value.get()]) if self.colour_value.get() != "None" else None)
+
+        # Set min/max axis values based on what is selected by matplotlib
+        self.x_min.set(self.ax.get_xlim()[0])
+        self.x_max.set(self.ax.get_xlim()[1])
+        self.y_min.set(self.ax.get_ylim()[0])
+        self.y_max.set(self.ax.get_ylim()[1])
+
+        if self.colour_value.get() != "None":
+            self.colour_min.set(min(self.detection_data[self.colour_value.get()]))
+            self.colour_max.set(max(self.detection_data[self.colour_value.get()]))
+        # If None is reselected, clear the entry to nothing
+        elif self.colour_value.get() == "None":
+            self.colour_min.set(value = "")
+            self.colour_max.set(value = "")
+            
+        
+    def update_plot_limits(self):
+        """Following update plot axes button press, update the plot with new limits"""
+        
+        print(self.x_min.get())
+        x_mm = [float(self.x_min.get()), self.x_max.get()]
+        y_mm = [self.y_min.get(), self.y_max.get()]
+        colour_mm = [self.colour_min.get(), self.colour_max.get()]
+        
+        self.plot(self.detection_data[self.x_value.get()],
+                  self.detection_data[self.y_value.get()],
+                  (self.detection_data[self.colour_value.get()]) if self.colour_value.get() != "None" else None,
+                  x_mm, 
+                  y_mm,
+                  colour_mm)
+                
     
-    def plot(self, x, y, colour = None):
+    def plot(self, x, y, colour = None, xmm=None, ymm=None, cmm=None):
         """plot QIBC data"""
+        print("plotting")
+        
+        print(xmm, ymm, cmm)
         
         # Object channel image
-        self.fig = Figure((5, 5))
+        self.fig = plt.Figure((4, 4))
         self.ax = self.fig.add_subplot(111)
         
-        self.ax.scatter(x = x, 
+        self.data_plot = self.ax.scatter(x = x, 
                         y = y, 
                         c = colour)
-        self.ax.title.set_text("Data")
+        # Add x and y axis based on user selection
         self.ax.set_xlabel(self.x_value.get())
+        self.ax.set_ylabel(self.y_value.get())
         
+        # Colour legend
+        if colour != None: self.fig.colorbar(self.data_plot, shrink=.3, pad=0.05, aspect=10)
+
         # Remove padding from around the plotted image
         self.fig.set_tight_layout(True)
         
@@ -893,7 +1031,7 @@ class DataVisualisation:
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.container)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=0)
-        self.canvas._tkcanvas.grid(row=0, column=0)
+        self.canvas._tkcanvas.grid(row=0, column=1, columnspan = 3)
         
         
     def canvas_clear(self, canvas):
@@ -980,19 +1118,17 @@ class DeepQIBCgui(tk.Frame):
         
         self.show_image = False
         
-        self.browse = BrowseFiles(self.master, 0, 0)
+        self.browse = BrowseFiles(self.master, 1, 0)
         
-        self.channels = ChannelSelection(self.master, 1, 0)
-
-        # iterator1 = Iterator(self.master, 1, 1)
+        self.channels = ChannelSelection(self.master, 1, 1)
         
         self.save_data = SaveData(self.master, 2, 0)
         
-        self.detect = RunDetection(self.master, 3, 0)     
+        self.detect = RunDetection(self.master, 2, 1)     
             
-        self.display = ImageDisplay(self.master, 0, 2)
+        self.display = ImageDisplay(self.master, 0, 0)
         
-        self.data_vis = DataVisualisation(self.master, 1, 2)
+        self.data_vis = DataVisualisation(self.master, 0, 1)
 
         # self.intergalactic = IntergalacticWidget(self.master, 5, 1)
         
