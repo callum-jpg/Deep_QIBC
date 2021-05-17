@@ -68,17 +68,18 @@ class BrowseFiles:
             width = 75)
         # When a file in dir_contents is double clicked, open the image
         self.dir_contents.bind("<Double-1>", self.open_image_selection)
+    
 
         # Position the explorer and button within self.container
-        self.lbl_explorer.grid(row = 0, column = 0)
+        self.lbl_explorer.grid(row = 0, column = 0, ipady=4)
         self.btn_browse.grid(row = 0, column = 1)
         self.dir_contents.grid(row = 1, column = 0)
+
         
     
     def browse_files(self):
         # Prompt user to select birectory
         self.foldername = filedialog.askdirectory()
-        print(self.foldername)
         # Display selected folder
         self.lbl_explorer.configure(text="Folder Opened: "+self.foldername)
         # Clear the contents that may previously be displayed
@@ -88,13 +89,12 @@ class BrowseFiles:
         for file in os.listdir(self.foldername):
             if file.endswith((".tif", ".png", ".TIF")):
                 self.dir_contents.insert(tk.END, file)
-
                 self.image_paths.append(os.path.join(self.foldername, file))
-                            # Enable detection button 
+
         # Check button state
         app.detect.detect_btn_state()
         
-    def open_image_selection1(self, _selection):
+    def open_image_selection(self, _selection):
         img_selection = self.dir_contents.curselection()
         self.img_filename = self.dir_contents.get(img_selection)
         img_path = os.path.join(self.foldername, self.img_filename)
@@ -124,7 +124,7 @@ class SaveData:
         self.container.grid(row = row, column = column)
         
         # Empty string that will be updated with the selected save directory, if desired
-        self.foldername = []
+        self.save_foldername = []
         
         # Textbox to display selected directory
         self.lbl_explorer = tk.Label(
@@ -142,7 +142,7 @@ class SaveData:
             command = self.browse_folders)
 
         # Position the explorer and button within self.container
-        self.lbl_explorer.grid(row = 0, column = 0)
+        self.lbl_explorer.grid(row = 0, column = 0, ipady=4)
         self.btn_browse.grid(row = 0, column = 1)
         
     def browse_folders(self):
@@ -150,8 +150,7 @@ class SaveData:
         Browse folders for a save directory
         """
         self.save_foldername = filedialog.askdirectory()
-        print(self.foldername)
-        if len(self.foldername):
+        if len(self.save_foldername):
             # Display selected folder to save data
             self.lbl_explorer.configure(text="Saving data in: "+self.save_foldername)
 
@@ -191,7 +190,6 @@ class ChannelSelection:
         self.channel1_entry = tk.Entry(self.container,
                                        textvariable=self.channel1,
                                        state=tk.DISABLED)
-        self.channel1_regex = tk.Entry(self.container, state=tk.DISABLED)
         
         self.lbl_channel2 = tk.Label(self.container, text="Channel 2:")
         self.channel2 = tk.StringVar() 
@@ -199,7 +197,6 @@ class ChannelSelection:
         self.channel2_entry = tk.Entry(self.container, 
                                        textvariable = self.channel2,
                                        state=tk.DISABLED)
-        self.channel2_regex = tk.Entry(self.container, state=tk.DISABLED)
 
         
         self.lbl_channel3 = tk.Label(self.container, text="Channel 3:")
@@ -208,7 +205,6 @@ class ChannelSelection:
         self.channel3_entry = tk.Entry(self.container, 
                                  textvariable = self.channel3,
                                  state=tk.DISABLED)
-        self.channel3_regex = tk.Entry(self.container, state=tk.DISABLED)
         
         self.lbl_channel4 = tk.Label(self.container, text="Channel 4:")
         self.channel4 = tk.StringVar() 
@@ -216,7 +212,15 @@ class ChannelSelection:
         self.channel4_entry = tk.Entry(self.container, 
                                  textvariable = self.channel4,
                                  state=tk.DISABLED)
-        self.channel4_regex = tk.Entry(self.container, state=tk.DISABLED)
+        
+        # regex
+        # Default regex will categorise images based on string following the 
+        # last underscore (eg. "_s123.TIF")
+        self.grouping_regex = tk.StringVar(value = "[^_]+$")
+        self.entry_regex = tk.Entry(self.container, textvariable=self.grouping_regex, state=tk.DISABLED)
+        self.lbl_regex = tk.Label(self.container, text = "Enter image grouping regex:")
+        self.entry_regex.grid(row = 3, column = 1, ipady=2)
+        self.lbl_regex.grid(row = 3, column = 0, sticky="nsew")
         
         
         # Object channel selection
@@ -233,20 +237,16 @@ class ChannelSelection:
         self.channel_option.grid(row = 2, column = 1, sticky="nsew")        
 
         self.lbl_channel1.grid(row=5, column=0, sticky="e")
-        self.channel1_entry.grid(row=5, column=1, sticky="w")   
-        self.channel1_regex.grid(row = 5, column = 2, stick = "w")
+        self.channel1_entry.grid(row=5, column=1, sticky="w", ipady=2)   
         
         self.lbl_channel2.grid(row=6, column=0, sticky="e")
-        self.channel2_entry.grid(row=6, column=1, sticky="nsew")
-        self.channel2_regex.grid(row = 6, column = 2, stick = "w")
+        self.channel2_entry.grid(row=6, column=1, sticky="nsew", ipady=2)
         
         self.lbl_channel3.grid(row=7, column=0, sticky="e")
-        self.channel3_entry.grid(row=7, column=1, sticky="nsew")
-        self.channel3_regex.grid(row = 7, column = 2, stick = "w")
+        self.channel3_entry.grid(row=7, column=1, sticky="nsew", ipady=2)
         
         self.lbl_channel4.grid(row=8, column=0, sticky="e")
-        self.channel4_entry.grid(row=8, column=1, sticky="nsew")
-        self.channel4_regex.grid(row = 8, column = 2, stick = "w")
+        self.channel4_entry.grid(row=8, column=1, sticky="nsew", ipady=2)
 
     def detect_check(self, *args):
         """
@@ -273,20 +273,14 @@ class ChannelSelection:
             # Remove any text entered un unrequired channels
             self.channel3_entry.delete(0, tk.END)
             self.channel4_entry.delete(0, tk.END)
-            self.channel3_regex.delete(0, tk.END)
-            self.channel4_regex.delete(0, tk.END)
+
             # Enable or disable entry fields based on selection
+            self.entry_regex.config(state=tk.NORMAL)
             self.channel1_entry.config(state=tk.NORMAL)
             self.channel2_entry.config(state=tk.NORMAL)
             self.channel3_entry.config(state=tk.DISABLED)
             self.channel4_entry.config(state=tk.DISABLED)
-            
-            # Enable or disable relevent regex fields
-            self.channel1_regex.config(state=tk.NORMAL)
-            self.channel2_regex.config(state=tk.NORMAL)
-            self.channel3_regex.config(state=tk.DISABLED)
-            self.channel4_regex.config(state=tk.DISABLED)
-            
+
             app.detect.btn_detection.config(state=tk.DISABLED)
             
             # Channels > 1 so decide object channel to run detection on
@@ -299,17 +293,12 @@ class ChannelSelection:
             
         if channels == 3:
             self.channel4_entry.delete(0, tk.END)
-            self.channel4_regex.delete(0, tk.END)
             
+            self.entry_regex.config(state=tk.NORMAL)            
             self.channel1_entry.config(state=tk.NORMAL)
             self.channel2_entry.config(state=tk.NORMAL)
             self.channel3_entry.config(state=tk.NORMAL)
             self.channel4_entry.config(state=tk.DISABLED)
-
-            self.channel1_regex.config(state=tk.NORMAL)
-            self.channel2_regex.config(state=tk.NORMAL)
-            self.channel3_regex.config(state=tk.NORMAL)
-            self.channel4_regex.config(state=tk.DISABLED)
 
             self.object_sel.config(state="active")
             for ch in self.channel_options[0:3]:
@@ -317,15 +306,11 @@ class ChannelSelection:
                                             command = lambda channel=ch: self.object_channel.set(channel))
 
         if channels == 4:
+            self.entry_regex.config(state=tk.NORMAL)
             self.channel1_entry.config(state=tk.NORMAL)
             self.channel2_entry.config(state=tk.NORMAL)
             self.channel3_entry.config(state=tk.NORMAL)
             self.channel4_entry.config(state=tk.NORMAL)
-            
-            self.channel1_regex.config(state=tk.NORMAL)
-            self.channel2_regex.config(state=tk.NORMAL)
-            self.channel3_regex.config(state=tk.NORMAL)
-            self.channel4_regex.config(state=tk.NORMAL)
             
             self.object_sel.config(state="active")
             for ch in self.channel_options[0:4]:
@@ -339,20 +324,11 @@ class ChannelSelection:
             self.channel3_entry.delete(0, tk.END)
             self.channel4_entry.delete(0, tk.END)
             
-            self.channel1_regex.delete(0, tk.END)
-            self.channel2_regex.delete(0, tk.END)
-            self.channel3_regex.delete(0, tk.END)
-            self.channel4_regex.delete(0, tk.END)
-            
+            self.entry_regex.config(state=tk.DISABLED)
             self.channel1_entry.config(state=tk.DISABLED)
             self.channel2_entry.config(state=tk.DISABLED)
             self.channel3_entry.config(state=tk.DISABLED)
             self.channel4_entry.config(state=tk.DISABLED)
-            
-            self.channel1_regex.config(state=tk.DISABLED)
-            self.channel2_regex.config(state=tk.DISABLED)
-            self.channel3_regex.config(state=tk.DISABLED)
-            self.channel4_regex.config(state=tk.DISABLED)
             
             self.object_sel.config(state="disabled")
                 
@@ -472,7 +448,7 @@ class RunDetection:
         else:
             channels = None
         
-        images = load_images.LoadImages()
+        images = load_images.LoadImages(app.channels.grouping_regex.get() if channels != None else None)
         images.add_channels(unique_ch_names)
         images.load_images(app.browse.foldername)
         
@@ -1004,7 +980,6 @@ class DataVisualisation:
             
     def update_plot_limits(self):
         """Following update plot axes button press, update the plot with new limits"""
-        print("not float:", self.x_min.get(), "float:", float(self.x_min.get()))
 
         x_mm = [self.x_min.get(), self.x_max.get()]
         y_mm = [self.y_min.get(), self.y_max.get()]
