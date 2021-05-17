@@ -17,6 +17,7 @@ matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.colors import LinearSegmentedColormap # For generating custom cmap
 
 
 import time
@@ -44,41 +45,6 @@ class BrowseFiles:
         self.container.grid(row = row, column = column)
         # Create a list to hold image paths
         self.image_paths = []
-        
-        def browse_files():
-            # Prompt user to select birectory
-            self.foldername = filedialog.askdirectory()
-            # Display selected folder
-            self.lbl_explorer.configure(text="Folder Opened: "+self.foldername)
-            # Clear the contents that may previously be displayed
-            self.dir_contents.delete(0, tk.END)
-            # For the user directory selected, search the directory
-            # and print tif and png images into the ListBox
-            for file in os.listdir(self.foldername):
-                if file.endswith((".tif", ".png", ".TIF")):
-                    self.dir_contents.insert(tk.END, file)
-
-                    self.image_paths.append(os.path.join(self.foldername, file))
-                                # Enable detection button 
-            # Check button state
-            app.detect.detect_btn_state()
-
-        
-        def open_image_selection(_selection):
-            img_selection = self.dir_contents.curselection()
-            self.img_filename = self.dir_contents.get(img_selection)
-            img_open = Image.open(self.img_filename)
-            width, height = img_open.size
-            aspect = width / height
-            # Round leads to approximation of the height, but it should
-            # not distort the image too much, hopefully...
-            img_resized = img_open.resize((500, round(500/aspect)))      
-            img = ImageTk.PhotoImage(img_resized)
-            new_window = tk.Toplevel()
-            new_window.title(self.img_filename)   
-            lab = tk.Label(new_window, image = img)
-            lab.grid(row = 0, column = 0)
-            new_window.mainloop()
             
         # Textbox to display selected directory
         self.lbl_explorer = tk.Label(
@@ -93,19 +59,57 @@ class BrowseFiles:
             master = self.container, 
             width = 20, 
             text = "Browse",
-            command = browse_files)
+            command = self.browse_files)
         
         # List box to display the image files found in the selected dir
         self.dir_contents = tk.Listbox(
             self.container,
             width = 75)
         # When a file in dir_contents is double clicked, open the image
-        self.dir_contents.bind("<Double-1>", open_image_selection)
+        self.dir_contents.bind("<Double-1>", self.open_image_selection)
 
         # Position the explorer and button within self.container
         self.lbl_explorer.grid(row = 0, column = 0)
         self.btn_browse.grid(row = 0, column = 1)
         self.dir_contents.grid(row = 1, column = 0)
+        
+    
+    def browse_files(self):
+        # Prompt user to select birectory
+        self.foldername = filedialog.askdirectory()
+        print(self.foldername)
+        # Display selected folder
+        self.lbl_explorer.configure(text="Folder Opened: "+self.foldername)
+        # Clear the contents that may previously be displayed
+        self.dir_contents.delete(0, tk.END)
+        # For the user directory selected, search the directory
+        # and print tif and png images into the ListBox
+        for file in os.listdir(self.foldername):
+            if file.endswith((".tif", ".png", ".TIF")):
+                self.dir_contents.insert(tk.END, file)
+
+                self.image_paths.append(os.path.join(self.foldername, file))
+                            # Enable detection button 
+        # Check button state
+        app.detect.detect_btn_state()
+
+    
+    def open_image_selection(self, _selection):
+        img_selection = self.dir_contents.curselection()
+        self.img_filename = self.dir_contents.get(img_selection)
+        print(os.path.join(self.foldername, self.img_filename))
+        img_open = Image.open(os.path.join(self.foldername, self.img_filename))
+        width, height = img_open.size
+        aspect = width / height
+        # Round leads to approximation of the height, but it should
+        # not distort the image too much, hopefully...
+        img_resized = img_open.resize((500, round(500/aspect)))      
+        img = ImageTk.PhotoImage(img_resized)
+        new_window = tk.Toplevel()
+        new_window.title(self.img_filename)   
+        lab = tk.Label(new_window, image = img)
+        lab.grid(row = 0, column = 0)
+        new_window.mainloop()
         
 class SaveData:
     def __init__(self, parent, row, column):
@@ -119,7 +123,7 @@ class SaveData:
         # Textbox to display selected directory
         self.lbl_explorer = tk.Label(
             master = self.container, 
-            text = "Select a data save directory", 
+            text = "Select a directory to save the data", 
             width = 75,
             bg = "white")
         
@@ -144,8 +148,6 @@ class SaveData:
             # Display selected folder to save data
             self.lbl_explorer.configure(text="Saving data in: "+self.foldername)
 
-
-        
 
 class ChannelSelection:
     def __init__(self, parent, row, column):
@@ -871,11 +873,19 @@ class DataVisualisation:
         x = np.arange(0, 4*np.pi, 0.1)
         y = np.sin(x)
         
+        # Plot colours in RGB format. [[gray], [orange], [red]]
+        plot_colours = [[0.9019607843137255, 0.9019607843137255, 0.8901960784313725],
+                        [1.0, 0.7215686274509804, 0.4235294117647059],
+                        [1.0, 0.3333333333333333, 0.3333333333333333]]
+        
+        self.plot_cmap = LinearSegmentedColormap.from_list("plot_cmap", plot_colours)
+        
+        
         self.fig = plt.Figure((4, 4))
         self.ax = self.fig.add_subplot(111)
         # Initisialise with an empty, placeholder image
         #self.ax.imshow(placeholder_img)
-        self.ax.plot(x, y)
+        self.ax.plot(x, y)  
         
         # Remove padding from around the plotted image
         self.fig.set_tight_layout(True)
@@ -901,39 +911,47 @@ class DataVisualisation:
 
     def update_data(self, data):
         """Receives data from the RunDetection class and updates the 
-        dropdown accordingly
+        dropdowns accordingly. Also leads to default scatter plot with no
+        point colours
         
         data: RunDetection data following intensity.consolidate_masks_with_images
         and intensity.record_intensity transformations"""
-        
-        self.detection_data = data
-        
-        # Slice from [2:] since columns 0:2 are image number and object number
-        self.detection_data_cols = [k for k in self.detection_data.keys()][2:]
-        
-        # Set some default values for x and y to plot
-        self.x_value.set(self.detection_data_cols[0])
-        self.y_value.set(self.detection_data_cols[1])
-        self.colour_value.set("None")
-        
-        # Plot 2nd (x) and 3rd (y, colour) coloumns
-        self.plot(self.detection_data[self.x_value.get()], 
-                  self.detection_data[self.y_value.get()])
-        
-        # Set min/max axis values based on what is selected by matplotlib
-        self.x_min.set(self.ax.get_xlim()[0])
-        self.x_max.set(self.ax.get_xlim()[1])
-        self.y_min.set(self.ax.get_ylim()[0])
-        self.y_max.set(self.ax.get_ylim()[1])
-        
-        # self.colour_min.set(self.ax.get_clim()[0])
-        # self.colour_max.set(self.ax.get_clim()[1])
-        #print(self.detection_data[self.x_value.get()])
         
         # Clear all old dropdown options from previous detections
         self.x_option['menu'].delete(0, tk.END)
         self.y_option['menu'].delete(0, tk.END)
         self.colour_option['menu'].delete(0, tk.END)
+        
+        # Convert dictionary into pandas DataFrame
+        self.detection_data = pd.DataFrame.from_dict(data)
+
+        # Slice from [2:] since columns 0:2 are image number and object number
+        self.detection_data_cols = [k for k in self.detection_data.keys()][2:]
+        
+        # Set some default values for x and y to plot
+        # There should always, at least, be these columns
+        self.x_value.set(self.detection_data_cols[0])
+        self.y_value.set(self.detection_data_cols[1])
+        # By default, do not plot coloured points
+        self.colour_value.set("None")
+        
+        # Plot 2nd (x) and 3rd (y) coloumns
+        self.plot(self.x_value.get(), 
+                  self.y_value.get())
+        
+        # Set min/max axis values based on what is selected by matplotlib
+        # Generally, the matplotlib selected min/max axis are just outwith the 
+        # true min/max of the given data
+        self.x_min.set(self.ax.get_xlim()[0])
+        self.x_max.set(self.ax.get_xlim()[1])
+        self.y_min.set(self.ax.get_ylim()[0])
+        self.y_max.set(self.ax.get_ylim()[1])
+        
+        # Set min/max colour values based on what was plotted by default
+        # This will default to (None, None) since no colour is selected
+        self.colour_min.set(self.data_plot.get_clim()[0])
+        self.colour_max.set(self.data_plot.get_clim()[1])
+    
         
         # In essence, the tk._setit function allows for a new value to be added
         # to the OptionMenu 'menu' variable and to call the command
@@ -961,60 +979,83 @@ class DataVisualisation:
     def update_plot(self, _):
         """Reads currently selected x, y and colour and updates the plot"""
         print("updating...")
-        self.plot(self.detection_data[self.x_value.get()],
-                  self.detection_data[self.y_value.get()],
-                  (self.detection_data[self.colour_value.get()]) if self.colour_value.get() != "None" else None)
+        self.plot(self.x_value.get(),
+                  self.y_value.get(),
+                  # Drop down None contains a string "None"
+                  (self.colour_value.get()) if self.colour_value.get() != "None" else None)
 
         # Set min/max axis values based on what is selected by matplotlib
         self.x_min.set(self.ax.get_xlim()[0])
         self.x_max.set(self.ax.get_xlim()[1])
         self.y_min.set(self.ax.get_ylim()[0])
         self.y_max.set(self.ax.get_ylim()[1])
-
-        if self.colour_value.get() != "None":
-            self.colour_min.set(min(self.detection_data[self.colour_value.get()]))
-            self.colour_max.set(max(self.detection_data[self.colour_value.get()]))
-        # If None is reselected, clear the entry to nothing
-        elif self.colour_value.get() == "None":
-            self.colour_min.set(value = "")
-            self.colour_max.set(value = "")
-            
         
+        # If a colour has been selected, update the min/max values chosen by
+        # matplotlib
+        self.colour_min.set(self.data_plot.get_clim()[0])
+        self.colour_max.set(self.data_plot.get_clim()[1])
+            
+            
     def update_plot_limits(self):
         """Following update plot axes button press, update the plot with new limits"""
-        
-        print(self.x_min.get())
-        x_mm = [float(self.x_min.get()), self.x_max.get()]
+        print("not float:", self.x_min.get(), "float:", float(self.x_min.get()))
+
+        x_mm = [self.x_min.get(), self.x_max.get()]
         y_mm = [self.y_min.get(), self.y_max.get()]
-        colour_mm = [self.colour_min.get(), self.colour_max.get()]
-        
-        self.plot(self.detection_data[self.x_value.get()],
-                  self.detection_data[self.y_value.get()],
-                  (self.detection_data[self.colour_value.get()]) if self.colour_value.get() != "None" else None,
+        colour_mm = [self.colour_min.get(), self.colour_max.get()] if self.colour_value.get() != "None" else None
+            
+        self.plot(self.x_value.get(),
+                  self.y_value.get(),
+                  (self.colour_value.get()) if self.colour_value.get() != "None" else None,
                   x_mm, 
                   y_mm,
                   colour_mm)
                 
     
     def plot(self, x, y, colour = None, xmm=None, ymm=None, cmm=None):
-        """plot QIBC data"""
-        print("plotting")
+        """plot QIBC data
         
-        print(xmm, ymm, cmm)
+        x, y, and colour are the axis labels as defined by the column name
+        created in the RunDetection class. 
+        
+        
+        pseudocode
+        receive x, y, c axis names (columns)
+        if x/ymm == None, plot all
+        if colour != None, filter self.detection_data BEFORE scatter"""
+        print("plotting")
+
+        # If cmm is given, remove points that are outwith the requested limits
+        if cmm != None:
+            # Convert cmm to float since input is a StringVar()
+            plot_data = self.detection_data[(self.detection_data[colour] >= float(cmm[0]))
+                                            & (self.detection_data[colour] <= float(cmm[1]))]
+        else:
+            # Otherwise data is not filtered
+            # set_xlim and set_ylim change the data shown, though
+            plot_data = self.detection_data
         
         # Object channel image
         self.fig = plt.Figure((4, 4))
         self.ax = self.fig.add_subplot(111)
         
-        self.data_plot = self.ax.scatter(x = x, 
-                        y = y, 
-                        c = colour)
+        self.data_plot = self.ax.scatter(x = plot_data[x], 
+                                         y = plot_data[y], 
+                                         # Only plot colour if requested
+                                         c = plot_data[colour] if colour != None else "dimgray",
+                                         cmap = self.plot_cmap,
+                                         edgecolors = "dimgray")
+        
+        # Colour legend
+        if colour != None: colbar = self.fig.colorbar(self.data_plot, shrink=.3, pad=0.05, aspect=10)
+        
+        # Set axis limits, if requested
+        self.ax.set_xlim((float(xmm[0]), float(xmm[1]))) if xmm != None else None
+        self.ax.set_ylim((float(ymm[0]), float(ymm[1]))) if ymm != None else None
+        
         # Add x and y axis based on user selection
         self.ax.set_xlabel(self.x_value.get())
         self.ax.set_ylabel(self.y_value.get())
-        
-        # Colour legend
-        if colour != None: self.fig.colorbar(self.data_plot, shrink=.3, pad=0.05, aspect=10)
 
         # Remove padding from around the plotted image
         self.fig.set_tight_layout(True)
