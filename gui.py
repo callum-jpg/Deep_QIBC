@@ -10,6 +10,7 @@ from threading import Thread
 import queue
 import numpy as np
 import pandas as pd
+import skimage.io # For browse img viewer
 
 
 import matplotlib
@@ -92,24 +93,29 @@ class BrowseFiles:
                             # Enable detection button 
         # Check button state
         app.detect.detect_btn_state()
-
-    
-    def open_image_selection(self, _selection):
+        
+    def open_image_selection1(self, _selection):
         img_selection = self.dir_contents.curselection()
         self.img_filename = self.dir_contents.get(img_selection)
-        print(os.path.join(self.foldername, self.img_filename))
-        img_open = Image.open(os.path.join(self.foldername, self.img_filename))
-        width, height = img_open.size
-        aspect = width / height
-        # Round leads to approximation of the height, but it should
-        # not distort the image too much, hopefully...
-        img_resized = img_open.resize((500, round(500/aspect)))      
-        img = ImageTk.PhotoImage(img_resized)
+        img_path = os.path.join(self.foldername, self.img_filename)
+        open_img = skimage.io.imread(img_path)
+        #print(img_name)
+        self.fig = plt.Figure((4, 4))
+        self.ax = self.fig.add_subplot(111)
+        self.ax.imshow(open_img, aspect = "auto", cmap="gray")
+    
         new_window = tk.Toplevel()
         new_window.title(self.img_filename)   
-        lab = tk.Label(new_window, image = img)
-        lab.grid(row = 0, column = 0)
+        # lab = tk.Label(new_window, image = self.img_filename)
+        # lab.grid(row = 0, column = 0)
+        # Object channel canvas
+        self.canvas = FigureCanvasTkAgg(self.fig, master=new_window)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().grid(row=0, column=0)
+        self.canvas._tkcanvas.grid(row=0, column=0, columnspan = 3)
         new_window.mainloop()
+        
+
         
 class SaveData:
     def __init__(self, parent, row, column):
@@ -143,10 +149,11 @@ class SaveData:
         """
         Browse folders for a save directory
         """
-        self.foldername = filedialog.askdirectory()
+        self.save_foldername = filedialog.askdirectory()
+        print(self.foldername)
         if len(self.foldername):
             # Display selected folder to save data
-            self.lbl_explorer.configure(text="Saving data in: "+self.foldername)
+            self.lbl_explorer.configure(text="Saving data in: "+self.save_foldername)
 
 
 class ChannelSelection:
@@ -368,17 +375,17 @@ class RunDetection:
 
         # Computation level selection
         self.lbl_computation = tk.Label(self.container, text = "Select computation level")
-        self.computation_level = tk.StringVar(value = "low")
+        self.computation_level = tk.StringVar(value = "Low")
         self.computation_selection = tk.OptionMenu(self.container,
                                                    self.computation_level,
-                                                   *["low", "med", "high"])  
+                                                   *["Low", "Med", "High"])  
         
         # GPU/CPU selection
         self.lbl_cpu_gpu = tk.Label(self.container, text = "Select device to run deepQIBC on")
-        self.cpu_gpu = tk.StringVar(value = "cpu")
+        self.cpu_gpu = tk.StringVar(value = "CPU")
         self.cpu_gpu_selection = tk.OptionMenu(self.container,
                                                self.cpu_gpu,
-                                               *["cpu", "gpu"]) 
+                                               *["CPU", "GPU"]) 
           
                 
         self.computation_selection.grid(row = 0, column = 0, sticky="nsew")
@@ -479,10 +486,9 @@ class RunDetection:
         nuclei_detection = detect.DetectNucleus()
         
         nuclei_detection.run_detection(images.image_info, 
-                                        #"low", 
-                                        self.computation_level.get(),
-                                        #"cpu", 
-                                        self.cpu_gpu.get(),
+                                        # lower() since written as CPU or Low
+                                        self.computation_level.get().lower(),
+                                        self.cpu_gpu.get().lower(),
                                         obj_channel)
         
         self.detection_results.append(nuclei_detection.results)
@@ -507,7 +513,7 @@ class RunDetection:
         app.data_vis.update_data(data)
         
         # Save data if directory selected
-        if len(app.save_data.foldername):
+        if len(app.save_data.save_foldername):
             df = pd.DataFrame(data=data)
             df.to_csv("deepQIBC_data.csv", index=False)
             
