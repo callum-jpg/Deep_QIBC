@@ -11,9 +11,10 @@ sys.path.append(mrcnn_dir)
 from mrcnn import utils
 
 class LoadImages:
-    def __init__(self):
+    def __init__(self, grouping_regex):
         self.image_info = []
         self.channels = []
+        self.grouping_regex = grouping_regex
         
         
     def add_channels(self, channels):
@@ -154,10 +155,8 @@ class LoadImages:
         # Perform grouping of images into image sets
         # If there are 2+ channels, perform grouping of image sets into a
         # nested list
-        # Else, group the individual images into nested lists
-        # TODO: Update so the regex isn't hard coded
         if len(self.channels) > 1:
-            self.match_images(image_path, "[^_]+$")
+            self.match_images(image_path, self.grouping_regex)
         else:
             self.grouped_images = [[i] for i in os.listdir(image_path)]
             
