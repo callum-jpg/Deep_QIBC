@@ -137,7 +137,8 @@ class RecordIntensity(object):
         """
         
         output_data = {'image number': [],
-                       'object number': []}
+                       'object number': [],
+                       'object_area': []}
         
         # Build dictionary to store intensity values for each channel
         output_data.update(("".join((channel, "_mean_intensity")), []) for channel in self.channels)
@@ -153,6 +154,13 @@ class RecordIntensity(object):
             object_number = [obj for obj in range(mask_min, mask_max + 1)]                 
             output_data['object number'] = output_data['object number'] + object_number
             output_data['image number'] = output_data['image number'] + [img['image number']] * mask_max
+            # np.bincount returns the bincount for ints found in the inputted array.
+            # In this case, an array of either 0's or 1/2/3/etc. is given. Thus, 
+            # np.bincount counts the number of 0's or the number of 2's, for example. [1:]
+            # slices out the count for the latter, rather than the 0's count. 
+            # The final [0] slices out this value from the np.array
+            area = [np.bincount(np.equal(masks, obj).flat)[1:][0] for obj in object_number]
+            output_data['object_area'] = output_data['object_area'] + area
             
             for channel in self.channels:
                 # Convert image array to grayscale
@@ -278,40 +286,4 @@ class RecordIntensity(object):
 
 # get_close_matches(word, possibilities)
 
-# #%% Test run with 1x channel
-
-# # Load images
-# images = load_images.LoadImages()
-
-# image_dir = "2xdapi"
-
-# images.load_images(image_dir)
-
-# #%%
-# # Run detection
-# nuclei_detection = detect.DetectNucleus()
-
-# nuclei_detection.run_detection(images.image_info, "low", "cpu")
-
-# nuclei_detection.results
-
-# #%%
-# # Load and label masks
-# labelled = ProcessMasks()
-
-# labelled.label_masks(nuclei_detection.results)
-
-# labelled.labelled_masks[0]['masks'].max()
-
-# #%%
-
-# intensity = RecordIntensity(images.image_info, labelled.labelled_masks)
-
-# # Add itentified masks to image_info
-# intensity.consolidate_masks_with_images()
-
-# data = intensity.record_intensity()
-
-# data["image_data_total_intensity"]
-# data["image_data_mean_intensity"]
 
