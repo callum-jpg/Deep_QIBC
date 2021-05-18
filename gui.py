@@ -4,31 +4,20 @@
 import tkinter as tk
 from tkinter import filedialog
 import os
-from PIL import Image
-from PIL import ImageTk
-from threading import Thread
-import queue
+
 import numpy as np
 import pandas as pd
 import skimage.io # For browse img viewer
-
-
-import matplotlib
-matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.colors import LinearSegmentedColormap # For generating custom cmap
 
-
-import time
-
+# DeepQIBC
 import load_images
 import detect
 import visualise
 import process_images
-
-import deepspace
 
 
 class BrowseFiles:
@@ -103,12 +92,9 @@ class BrowseFiles:
         self.fig = plt.Figure((4, 4))
         self.ax = self.fig.add_subplot(111)
         self.ax.imshow(open_img, aspect = "auto", cmap="gray")
-    
+        # Create a new window. Will popup with image to display
         new_window = tk.Toplevel()
         new_window.title(self.img_filename)   
-        # lab = tk.Label(new_window, image = self.img_filename)
-        # lab.grid(row = 0, column = 0)
-        # Object channel canvas
         self.canvas = FigureCanvasTkAgg(self.fig, master=new_window)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=0)
@@ -350,7 +336,7 @@ class RunDetection:
         self.lbl_detection = tk.Label(self.container, text="Select img directory")
 
         # Computation level selection
-        self.lbl_computation = tk.Label(self.container, text = "Select computation level")
+        self.lbl_computation = tk.Label(self.container, text = "Select computation requirement")
         self.computation_level = tk.StringVar(value = "Low")
         self.computation_selection = tk.OptionMenu(self.container,
                                                    self.computation_level,
@@ -431,7 +417,7 @@ class RunDetection:
             self.lbl_detection.configure(text="No imgs found in selected folder")
         
     def run_detection(self):
-        self.queue = queue.Queue()
+        # self.queue = queue.Queue()
         
         # Gather unique channel filename parts
         unique_ch_names = list((app.channels.channel1.get(),
@@ -538,85 +524,6 @@ class RunDetection:
     #         print("Queue cleared!")
     #         self.parent.after_cancel(self.detecting)
     #         #self.detection_thread.exit()
-
-
-class Iterator:
-    """
-    For testing passing data between widgets/classes
-    """
-    def __init__(self, parent, row, column):
-        self.parent = parent
-        self.container = tk.Frame(self.parent)
-        self.container.grid(row = row, column = column)
-        
-        btn_decrease = tk.Button(self.container, text="-", command=self.decrease)
-        btn_decrease.grid(row=0, column=0, sticky="nsew")
-        
-        self.lbl_value = tk.Label(self.container, text="0")
-        self.lbl_value.grid(row=0, column=1)
-        
-        btn_increase = tk.Button(self.container, text="+", command=self.increase)
-        btn_increase.grid(row=0, column=2, sticky="nsew")    
-
-        btn_trigger = tk.Button(self.container, text = "!!!", command = self.trigger)
-        btn_trigger.grid(row=1, column=1, sticky="nsew") 
-
-    def increase(self):
-        # value = int(self.lbl_value["text"])
-        # self.lbl_value["text"] = value + 1
-        # app.print_iterator(int(self.lbl_value["text"]))
-        
-        rollover_value = 4
-        value = int(self.lbl_value["text"])
-        self.lbl_value["text"] = (value + 1) % rollover_value
-        app.print_iterator(int(self.lbl_value["text"]))
-
-    def decrease(self): 
-        # value = int(self.lbl_value["text"])
-        # self.lbl_value["text"] = value - 1
-        # app.print_iterator(int(self.lbl_value["text"]))
-        
-        rollover_value = 4
-        value = int(self.lbl_value["text"])
-        self.lbl_value["text"] = (value - 1) % rollover_value
-        app.print_iterator(int(self.lbl_value["text"]))
-        
-        print(app.detect.detection_results)
-        
-
-    def trigger(self):
-        #l = ListIterator()
-        self.queue = queue.Queue()
-        ListIterator(self.queue).start()
-        
-        self.parent.after(100, self.process_queue)
-
-    def process_queue(self):
-        try:
-            msg = self.queue.get(0)
-            print(msg)
-            # Show result of the task if needed
-            self.parent.after(100, self.process_queue)
-            app.print_iterator1(msg)
-        except queue.Empty:
-            self.parent.after(100, self.process_queue)
-
-
-class IteratorDisplay:
-    def __init__(self, parent, row, column, data):
-        self.parent = parent
-        self.container = tk.Frame(self.parent)
-        self.container.grid(row = row, column = column)
-
-        self.lbl_display = tk.Label(self.container, text = str(data))
-        self.lbl_display.grid(row=0, column=0)   
-    
-    def update(self, data):
-        """
-        Method to update the label created by this class
-        """
-        self.lbl_display["text"] = data
-
         
 class ImageDisplay:
     def __init__(self, parent, row, column):
@@ -867,7 +774,11 @@ class DataVisualisation:
         self.ax = self.fig.add_subplot(111)
         # Initisialise with an empty, placeholder image
         #self.ax.imshow(placeholder_img)
-        self.ax.plot(x, y)  
+        #self.ax.plot(x, y)  
+        
+        self.ax.text(0.5, 0.5, "No data to plot", 
+                     horizontalalignment='center',
+                     verticalalignment='center')
         
         # Remove padding from around the plotted image
         self.fig.set_tight_layout(True)
@@ -907,13 +818,15 @@ class DataVisualisation:
         # Convert dictionary into pandas DataFrame
         self.detection_data = pd.DataFrame.from_dict(data)
 
-        # Slice from [2:] since columns 0:2 are image number and object number
+        # Slice from [2:] since columns 0:3 are image number and object number
         self.detection_data_cols = [k for k in self.detection_data.keys()][2:]
         
         # Set some default values for x and y to plot
         # There should always, at least, be these columns
-        self.x_value.set(self.detection_data_cols[0])
-        self.y_value.set(self.detection_data_cols[1])
+        # col[1] and col[2] will be mean and total intensities of the object channel,
+        # respectively
+        self.x_value.set(self.detection_data_cols[1])
+        self.y_value.set(self.detection_data_cols[2])
         # By default, do not plot coloured points
         self.colour_value.set("None")
         
@@ -1062,77 +975,6 @@ class DataVisualisation:
             print("deleting:", item)
             canvas.get_tk_widget().delete(item)
 
-class ListIterator(Thread):
-    """
-    Class to mimic the detection of deepQIBC. 
-    
-    I'm trying to work out if I can display the detections as they 
-    are measured.
-    
-    Therefore, I want to pass self.list 5 times to the master window, 
-    rather than just passing the completed list.
-    
-    Should I run it in a different thread? I think so
-    """
-    def __init__(self, queue):
-        # Target changes the function thread.start() will run
-        # Otherwise, it will look for a run() method
-        Thread.__init__(self, target = self.hello)
-        self.queue = queue
-
-    def hello(self):
-        for i in range(5):
-            time.sleep(0.5)
-            self.queue.put(i)
-
-
-class IntergalacticWidget:
-    """
-    A test widget for running a function from another file in a thread
-    """
-    def __init__(self, parent, row, column):
-        self.parent = parent
-        self.container = tk.Frame(self.parent)
-        self.container.grid(row = row, column = column)
-        
-        btn_start = tk.Button(self.container, text = "Start", command = self.start)
-        btn_start.grid(row=1, column=1, sticky="nsew", padx = 20, pady = 20) 
-        
-        btn_start = tk.Button(self.container, text = "STOP ME", command = self.cancel)
-        btn_start.grid(row=1, column=2, sticky="nsew", padx = 20, pady = 20) 
-        
-        self.shuttle_vector = 5
-
-        
-    def start(self):
-        self.queue = queue.Queue()
-        
-        self.counter = self.shuttle_vector
-    
-        deepspace.DeepSpace(self.queue, self.shuttle_vector).start()
-        
-        self.test = self.parent.after(100, self.process_queue_intergalactic)
-
-    def process_queue_intergalactic(self):
-        try:
-            msg = self.queue.get(0)
-            print(msg)
-            # Show result of the task if needed
-            #self.parent.after(100, self.process_queue_intergalactic)
-            self.test = self.parent.after(100, self.process_queue_intergalactic)
-            app.print_iterator1(msg)
-            self.counter -= 1
-        except queue.Empty:
-            #self.parent.after(100, self.process_queue_intergalactic)
-            self.test = self.parent.after(100, self.process_queue_intergalactic)
-        if self.counter == 0:
-            self.parent.after_cancel(self.test)
-    
-        # self.parent.after_cancel(self.test)
-        
-    def cancel(self):
-        self.parent.after_cancel(self.test)
-            
 
 class DeepQIBCgui(tk.Frame):
     def __init__(self, master, *args, **kwargs):
@@ -1146,7 +988,7 @@ class DeepQIBCgui(tk.Frame):
         
         self.save_data = SaveData(self.master, 2, 0)
         
-        self.detect = RunDetection(self.master, 2, 1)     
+        self.detect = RunDetection(self.master, 2, 1)  
             
         self.display = ImageDisplay(self.master, 0, 0)
         
@@ -1190,6 +1032,8 @@ class DeepQIBCgui(tk.Frame):
         
 if __name__ == "__main__":
     root = tk.Tk()
-    app = DeepQIBCgui(root)
+    # root.style = ttk.Style()
+    # root.style.theme_use("clam")
+    app = DeepQIBCgui(root)    
     root.mainloop()
 
