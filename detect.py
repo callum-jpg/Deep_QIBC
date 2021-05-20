@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import skimage
 import time
-from threading import Thread
+# from threading import Thread
 
 mrcnn_dir = os.path.abspath("Mask_RCNN")
 sys.path.append(mrcnn_dir)
@@ -50,7 +50,8 @@ class AdjustNucleusConfigMed(nucleus.NucleusConfig):
         RPN_NMS_THRESHOLD = 0.7
         IMAGE_RESIZE_MODE = "square"
         IMAGE_MIN_DIM = 1024
-        IMAGE_MAX_DIM = 1024       
+        IMAGE_MAX_DIM = 1024   
+
         
 class AdjustNucleusConfigHigh(nucleus.NucleusConfig):
     # High config doesn't seem to add much, if anything, above med. Delete?
@@ -146,12 +147,8 @@ class AdjustNucleusConfigHigh(nucleus.NucleusConfig):
  
 
 
-class DetectNucleus_thread(Thread):
+class DetectNucleus_thread:
     def __init__(self, queue):
-        # Queue for communicating between threads
-        self.queue = queue
-        # Initialise class to be run as a Thread
-        Thread.__init__(self)
         # Instantiate the desired computation config
         self.config_low = AdjustNucleusConfigLow()
         self.config_med = AdjustNucleusConfigMed()
@@ -177,7 +174,7 @@ class DetectNucleus_thread(Thread):
         if computation_requirement == "low":
             print("Using low settings")
             config = self.config_low
-        if computation_requirement == "med":
+        if computation_requirement == "med" or "Med" or "Medium":
             print("Using medium settings")
             config = self.config_med
         if computation_requirement == "high":
