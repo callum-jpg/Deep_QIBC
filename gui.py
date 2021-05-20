@@ -340,10 +340,10 @@ class RunDetection:
         self.computation_level = tk.StringVar(value = "Low")
         self.computation_selection = tk.OptionMenu(self.container,
                                                    self.computation_level,
-                                                   *["Low", "Med", "High"])  
+                                                   *["Low", "Medium", "High"])  
         
         # GPU/CPU selection
-        self.lbl_cpu_gpu = tk.Label(self.container, text = "Select device to run deepQIBC on")
+        self.lbl_cpu_gpu = tk.Label(self.container, text = "Select device to run the detection")
         self.cpu_gpu = tk.StringVar(value = "CPU")
         self.cpu_gpu_selection = tk.OptionMenu(self.container,
                                                self.cpu_gpu,
@@ -1018,7 +1018,7 @@ class DeepQIBCgui(tk.Frame):
             self.display.plot(0)
             self.show_image = True
 
-        print("checking results...")
+        #print("checking results...")
         self.master.after(1000, self.display_image)
 
     def print_iterator(self, data):
@@ -1032,8 +1032,7 @@ class DeepQIBCgui(tk.Frame):
         
 if __name__ == "__main__":
     root = tk.Tk()
-    # root.style = ttk.Style()
-    # root.style.theme_use("clam")
+    root.title("DeepQIBC")
     app = DeepQIBCgui(root)    
     root.mainloop()
 
