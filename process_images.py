@@ -3,6 +3,7 @@ import detect
 import skimage.color
 import numpy as np
 from scipy import ndimage
+import time
 
 
 class ProcessMasks(object):
@@ -48,8 +49,15 @@ class ProcessMasks(object):
         """
         output_masks = []
         output_edges = []
+        
+        # If no masks have been identified, return empty arrays
+        if array.shape[2] == 0:
+            return np.array([]), np.array([])
 
-        for k_ind in range(0, array.shape[2]):
+        # for k_ind in range(0, array.shape[2]):
+        # Checking if choosing later masks first to stronger ones improves the 
+        # quality of data (as in, [0:] masks have higher confidence than later ones)
+        for k_ind in range(array.shape[2]-1, 0-1, -1):
 
             # Label
             loop_output_masks, _ = ndimage.label(array[..., k_ind], np.ones((3, 3)))
@@ -57,15 +65,15 @@ class ProcessMasks(object):
             loop_output_edges = skimage.segmentation.find_boundaries(array[..., k_ind], 
                                                                       mode="inner", background=0).astype(np.uint8)
             
-            # loop_output_edges = ndimage.label(array[..., k_ind], np.ones((3, 3)))
-
-
+            #print(loop_output_edges[0].size, loop_output_edges[1].size)
+            
             # Rename the identified labels with the corresponding mask number
             # Since masks are stored in different k elements, ndimage.label
             # only labels the mask as 1
             loop_output_masks = np.where(loop_output_masks == 1, k_ind + 1, loop_output_masks)
             
             loop_output_edges = np.where(loop_output_edges == 1, k_ind + 1, loop_output_edges)
+            
 
             # Append arrays to list
             output_masks.append(loop_output_masks)
@@ -151,6 +159,8 @@ class RecordIntensity(object):
         
         img is a 2d array of a multichannel image
         """
+        # Record time taken to record intensity
+        start_time = time.time()
         
         output_data = {'image number': [],
                        'object number': [],
@@ -160,108 +170,176 @@ class RecordIntensity(object):
         # Entire nuclei intensities
         output_data.update(("".join((channel, "_mean_intensity")), []) for channel in self.channels)
         output_data.update(("".join((channel, "_total_intensity")), []) for channel in self.channels)
-        output_data.update(("".join((channel, "_min_intensity")), []) for channel in self.channels)
-        output_data.update(("".join((channel, "_max_intensity")), []) for channel in self.channels)
-        output_data.update(("".join((channel, "_std_intensity")), []) for channel in self.channels)
+        # output_data.update(("".join((channel, "_min_intensity")), []) for channel in self.channels)
+        # output_data.update(("".join((channel, "_max_intensity")), []) for channel in self.channels)
+        # output_data.update(("".join((channel, "_std_intensity")), []) for channel in self.channels)
         
-        # Edge nuclei intensities
-        output_data.update(("".join((channel, "_edge_mean_intensity")), []) for channel in self.channels)
-        output_data.update(("".join((channel, "_edge_total_intensity")), []) for channel in self.channels)
-        output_data.update(("".join((channel, "_edge_min_intensity")), []) for channel in self.channels)
-        output_data.update(("".join((channel, "_edge_max_intensity")), []) for channel in self.channels)
-        output_data.update(("".join((channel, "_edge_std_intensity")), []) for channel in self.channels)
+        # # Edge nuclei intensities
+        # output_data.update(("".join((channel, "_edge_mean_intensity")), []) for channel in self.channels)
+        # output_data.update(("".join((channel, "_edge_total_intensity")), []) for channel in self.channels)
+        # output_data.update(("".join((channel, "_edge_min_intensity")), []) for channel in self.channels)
+        # output_data.update(("".join((channel, "_edge_max_intensity")), []) for channel in self.channels)
+        # output_data.update(("".join((channel, "_edge_std_intensity")), []) for channel in self.channels)
         
         for img in self.image_info:
             masks = img['masks']
-            # Find the indices of non.zero numbers and use these
-            # indices to extract out non.zero values from original array
-            mask_min = np.min(masks[np.nonzero(masks)])
-            mask_max = np.max(masks[np.nonzero(masks)])
-            object_number = [obj for obj in range(mask_min, mask_max + 1)]                 
-            output_data['object number'] = output_data['object number'] + object_number
-            output_data['image number'] = output_data['image number'] + [img['image number']] * mask_max
-            # np.bincount returns the bincount for ints found in the inputted array.
-            # In this case, an array of either 0's or 1/2/3/etc. is given. Thus, 
-            # np.bincount counts the number of 0's or the number of 2's, for example. [1:]
-            # slices out the count for the latter, rather than the 0's count. 
-            # The final [0] slices out this value from the np.array
-            area = [np.bincount(np.equal(masks, obj).flat)[1:][0] for obj in object_number]
-            output_data['object_area'] = output_data['object_area'] + area
+            if masks.size != 0: # Skip if no masks were identified
+                #print("filename:", img['w1DAPI'][0])
+                # Find the indices of non.zero numbers and use these
+                # indices to extract out non.zero values from original array
+                # mask_min = np.min(masks[np.nonzero(masks)])
+                # mask_max = np.max(masks[np.nonzero(masks)])
+                # object_number = [obj for obj in range(mask_min, mask_max + 1)]  
+                
+                object_number = list(set([i for i in masks[np.where(masks != 0)]]))
+                
+                #print("obj number:", object_number)
+                output_data['object number'] = output_data['object number'] + object_number
+                output_data['image number'] = output_data['image number'] + [img['image number']] * len(object_number)
+                # output_data['image number'] = output_data['image number'] + [img['image number']] * mask_max
+                # np.bincount returns the bincount for ints found in the inputted array.
+                # In this case, an array of either 0's or 1/2/3/etc. is given. Thus, 
+                # np.bincount counts the number of 0's or the number of 2's, for example. [1:]
+                # slices out the count for the latter, rather than the 0's count. 
+                # The final [0] slices out this value from the np.array
+                #print("bincount+equal:",[np.bincount(np.equal(masks, obj).flat)[1:] for obj in object_number])
+                # PROBLEM: bincount returns empty arrays if the mask is of size 0
+                # Why are masks with size 0 returned? Well, label_masks_and_edges() 
+                # works by overwriting older masks with new masks. If two masks 
+                # completely overlap or the new mask overlaps an older mask,
+                # the older one will be overwritten.
+                # This can lead to object_number returning a list of 1:90, but there
+                # could be a chunk of overwritten masks at, say, 45-60 since 
+                # object number is calculated from just the min and max
+                area = [np.bincount(np.equal(masks, obj).flat)[1:][0] for obj in object_number]
+                output_data['object_area'] = output_data['object_area'] + area
+                
+                for channel in self.channels:
+                    # Convert image array to grayscale
+                    img_gray = skimage.color.rgb2gray(img[channel][1])
+                    
+                    ## Entire object intensities
+                    # Mean intensity
+                    mean_intensity = [ndimage.mean(img_gray, 
+                                                      labels=(np.equal(img['masks'], obj)))
+                                                          for obj in object_number]
+                    # Add recorded intensities to corresponding channel dict key
+                    output_data[channel+"_mean_intensity"] = output_data[channel+"_mean_intensity"] + mean_intensity                
             
-            for channel in self.channels:
-                # Convert image array to grayscale
-                img_gray = skimage.color.rgb2gray(img[channel][1])
-                
-                ## Entire object intensities
-                # Mean intensity
-                mean_intensity = [ndimage.mean(img_gray, 
-                                                  labels=(np.equal(img['masks'], obj)))
-                                                      for obj in object_number]
-                # Add recorded intensities to corresponding channel dict key
-                output_data[channel+"_mean_intensity"] = output_data[channel+"_mean_intensity"] + mean_intensity                
+                    # Measure total intensity
+                    total_intensity = [ndimage.sum(img_gray, 
+                                                      labels=(np.equal(img['masks'], obj)))
+                                                          for obj in object_number]
+                    
+                    output_data[channel+"_total_intensity"] = output_data[channel+"_total_intensity"] + total_intensity   
+                    
+                    # # Min intensity
+                    # min_intensity = [ndimage.minimum(img_gray, 
+                    #                                   labels=(np.equal(img['masks'], obj)))
+                    #                                       for obj in object_number]
+                    # output_data[channel+"_min_intensity"] = output_data[channel+"_min_intensity"] + min_intensity  
+                    
+                    # # Max intensity
+                    # max_intensity = [ndimage.maximum(img_gray, 
+                    #                                   labels=(np.equal(img['masks'], obj)))
+                    #                                       for obj in object_number]
+                    # output_data[channel+"_max_intensity"] = output_data[channel+"_max_intensity"] + max_intensity  
+                    
+                    # # Standard deviation
+                    # # Since label_masks_and_edges() can overwite previously labelled masks,
+                    # # you can have masks that count like [1, 2, 3, 21, 22]
+                    # # std relies on the mean intensity of the object, but to 
+                    # # find this value, we need to use the mask object index, 
+                    # # and NOT the mask object number
+                    # std_intensity = [np.sqrt(
+                    #     ndimage.mean((img_gray - mean_intensity[ind]) ** 2, 
+                    #                                   labels=(np.equal(img['masks'], ind))))
+                    #                                       for ind, obj in enumerate(object_number)]
+                    # output_data[channel+"_std_intensity"] = output_data[channel+"_std_intensity"] + std_intensity   
+                    
+                    # ## Edge intensities
+                    # # Mean edge intensity
+                    # mean_intensity_edge = [ndimage.mean(img_gray, 
+                    #                                     labels=(np.equal(img['edges'], obj))) 
+                    #                        for obj in object_number]
+                    # output_data[channel+"_edge_mean_intensity"] = output_data[channel+"_edge_mean_intensity"] + mean_intensity_edge      
+                    
+                    # # Total edge intensity
+                    # total_intensity_edge = [ndimage.sum(img_gray, 
+                    #                                   labels=(np.equal(img['edges'], obj)))
+                    #                                       for obj in object_number]
+                    # # Add recorded intensities to corresponding channel dict key
+                    # output_data[channel+"_edge_total_intensity"] = output_data[channel+"_edge_total_intensity"] + total_intensity_edge  
+                    
+                    # # Why the switch from list comprehension to try/except?
+                    # # Quite simply, the label_masks_and_edges() function is rubbish
+                    # # Because it overwrites previously identified objects, it can lead
+                    # # to parts of old masks that have been 99% overwritten to persist
+                    # # This is particularly perilous for edges as they are spotty
+                    # # to begin with. 
+                    # # Solution: fundamentally improve label_masks_and_edges()
+                    # # so that overlapping masks are appropriately delt with
+                    # # and that clean masks and edges are passed to 
+                    # # record_intensity(). For now, the try/except are 
+                    # # a less than ideal (slower) solution to this problem. 
+                    
+                    # # Currently, mean and std are worst hit as neither of these
+                    # # can be accurately determined due to a FloatingPointError
+                    # # for non-existant, overwritten edges
+                    
+                    # min_intensity_edge = []
+                    # for obj in object_number:
+                    #     try:
+                    #         min_intensity_edge.append(
+                    #             ndimage.minimum(img_gray, 
+                    #                                   labels=(np.equal(img['edges'], obj))))
+                    #     except:
+                    #         min_intensity_edge.append(0)
+                    # output_data[channel+"_edge_min_intensity"] = output_data[channel+"_edge_min_intensity"] + min_intensity_edge
+                    
+                    # max_intensity_edge = []
+                    # for obj in object_number:
+                    #     try:
+                    #         max_intensity_edge.append(
+                    #             ndimage.maximum(img_gray, 
+                    #                                   labels=(np.equal(img['edges'], obj))))
+                    #     except:
+                    #         max_intensity_edge.append(0)
+                    # output_data[channel+"_edge_max_intensity"] = output_data[channel+"_edge_max_intensity"] + max_intensity_edge
+                    
+                    
+                    # std_intensity_edge = []
+                    # for ind, obj in enumerate(object_number):
+                    #     std_intensity_edge.append(
+                    #         np.sqrt(
+                    #             ndimage.mean((img_gray - mean_intensity[ind]) ** 2, 
+                    #                                   labels=(np.equal(img['edges'], ind))))
+                    #         )
+                    # output_data[channel+"_edge_std_intensity"] = output_data[channel+"_edge_std_intensity"] + std_intensity_edge
+
+
+                    # # edge min intensity
+                    # min_intensity_edge = [ndimage.minimum(img_gray, 
+                    #                                   labels=(np.equal(img['edges'], obj)))
+                    #                                       for obj in object_number]
+                    # output_data[channel+"_edge_min_intensity"] = output_data[channel+"_edge_min_intensity"] + min_intensity_edge  
+
+                    # # edge max intensity
+                    # max_intensity_edge = [ndimage.maximum(img_gray, 
+                    #                                   labels=(np.equal(img['edges'], obj)))
+                    #                                       for obj in object_number]
+                    # output_data[channel+"_edge_max_intensity"] = output_data[channel+"_edge_max_intensity"] + max_intensity_edge                  
+            
+                    # Standard deviation of edge intensity
+                    # std_intensity_edge = [np.sqrt(
+                    #     ndimage.mean((img_gray - mean_intensity[ind]) ** 2, 
+                    #                                   labels=(np.equal(img['edges'], ind))))
+                    #                                       for ind, obj in enumerate(object_number)]
+                    # output_data[channel+"_edge_std_intensity"] = output_data[channel+"_edge_std_intensity"] + std_intensity_edge   
         
-                # Measure total intensity
-                total_intensity = [ndimage.sum(img_gray, 
-                                                  labels=(np.equal(img['masks'], obj)))
-                                                      for obj in object_number]
-                output_data[channel+"_total_intensity"] = output_data[channel+"_total_intensity"] + total_intensity   
-                
-                # Min intensity
-                min_intensity = [ndimage.minimum(img_gray, 
-                                                  labels=(np.equal(img['masks'], obj)))
-                                                      for obj in object_number]
-                output_data[channel+"_min_intensity"] = output_data[channel+"_min_intensity"] + min_intensity  
-                
-                # Max intensity
-                max_intensity = [ndimage.maximum(img_gray, 
-                                                  labels=(np.equal(img['masks'], obj)))
-                                                      for obj in object_number]
-                output_data[channel+"_max_intensity"] = output_data[channel+"_max_intensity"] + max_intensity  
-                
-                # Standard deviation
-                std_intensity = [np.sqrt(
-                    ndimage.mean((img_gray - mean_intensity[obj - 1]) ** 2, 
-                                                  labels=(np.equal(img['masks'], obj))))
-                                                      for obj in object_number]
-                output_data[channel+"_std_intensity"] = output_data[channel+"_std_intensity"] + std_intensity   
-                
-                ## Edge intensities
-                # Mean edge intensity
-                mean_intensity_edge = [ndimage.mean(img_gray, 
-                                                    labels=(np.equal(img['edges'], obj))) 
-                                       for obj in object_number]
-                output_data[channel+"_edge_mean_intensity"] = output_data[channel+"_edge_mean_intensity"] + mean_intensity_edge      
-                
-                # Total edge intensity
-                total_intensity_edge = [ndimage.sum(img_gray, 
-                                                  labels=(np.equal(img['edges'], obj)))
-                                                      for obj in object_number]
-                # Add recorded intensities to corresponding channel dict key
-                output_data[channel+"_edge_total_intensity"] = output_data[channel+"_edge_total_intensity"] + total_intensity_edge  
-        
-                # edge min intensity
-                min_intensity_edge = [ndimage.minimum(img_gray, 
-                                                  labels=(np.equal(img['edges'], obj)))
-                                                      for obj in object_number]
-                output_data[channel+"_edge_min_intensity"] = output_data[channel+"_edge_min_intensity"] + min_intensity_edge  
-                
-                # edge max intensity
-                max_intensity_edge = [ndimage.maximum(img_gray, 
-                                                  labels=(np.equal(img['edges'], obj)))
-                                                      for obj in object_number]
-                output_data[channel+"_edge_max_intensity"] = output_data[channel+"_edge_max_intensity"] + max_intensity_edge                  
-        
-                # Standard deviation of edge intensity
-                std_intensity_edge = [np.sqrt(
-                    ndimage.mean((img_gray - mean_intensity[obj - 1]) ** 2, 
-                                                  labels=(np.equal(img['edges'], obj))))
-                                                      for obj in object_number]
-                output_data[channel+"_edge_std_intensity"] = output_data[channel+"_edge_std_intensity"] + std_intensity_edge   
+        print("--- {} seconds to record intensities ---".format(time.time() - start_time))
         
         return output_data
-
-            
-        
 # #%% Testing
 
 
