@@ -454,7 +454,7 @@ class RunDetection:
                                         obj_channel)
         
         self.detection_results.append(nuclei_detection.results)
-        
+
         # Load and label masks
         labelled = process_images.ProcessMasks()
         
@@ -758,6 +758,16 @@ class DataVisualisation:
                                            command = self.update_plot_limits)
         self.btn_update_limits.grid(row = 5, column = 2, columnspan = 2)
         
+        # Scale y log10 check            
+        self.bool_ylog = tk.BooleanVar()
+        self.bool_ylog.set(False)
+        self.ylog = tk.Checkbutton(self.container, text = " Scale y log10", variable = self.bool_ylog,
+                                   command = self.update_plot)
+        self.ylog.grid(row = 5, column = 1)
+        
+
+        
+        
         # Simple placeholder data
         x = np.arange(0, 4*np.pi, 0.1)
         y = np.sin(x)
@@ -792,6 +802,7 @@ class DataVisualisation:
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=0, column=0)
         self.canvas._tkcanvas.grid(row=0, column=1, columnspan = 3)
+           
             
     def validate_input(self, x):
         """Validate that user input is a float"""
@@ -871,13 +882,14 @@ class DataVisualisation:
                 self.colour_option['menu'].add_command(label = col,
                                                   command = tk._setit(self.colour_value, col, self.update_plot)) 
 
-    def update_plot(self, _):
+    def update_plot(self, _ = None):
         """Reads currently selected x, y and colour and updates the plot"""
         print("updating...")
         self.plot(self.x_value.get(),
                   self.y_value.get(),
                   # Drop down None contains a string "None"
-                  (self.colour_value.get()) if self.colour_value.get() != "None" else None)
+                  (self.colour_value.get()) if self.colour_value.get() != "None" else None,
+                  ylog=self.bool_ylog.get() if self.bool_ylog.get() else None)
 
         # Set min/max axis values based on what is selected by matplotlib
         self.x_min.set(self.ax.get_xlim()[0])
@@ -903,10 +915,11 @@ class DataVisualisation:
                   (self.colour_value.get()) if self.colour_value.get() != "None" else None,
                   x_mm, 
                   y_mm,
-                  colour_mm)
+                  colour_mm,
+                  ylog=self.bool_ylog.get() if self.bool_ylog.get() else None)
                 
     
-    def plot(self, x, y, colour = None, xmm=None, ymm=None, cmm=None):
+    def plot(self, x, y, colour = None, xmm=None, ymm=None, cmm=None, ylog=None):
         """plot QIBC data
         
         x, y, and colour are the axis labels as defined by the column name
@@ -937,6 +950,7 @@ class DataVisualisation:
                                          y = plot_data[y], 
                                          # Only plot colour if requested
                                          c = plot_data[colour] if colour != None else "dimgray",
+                                         s=5,
                                          cmap = self.plot_cmap,
                                          edgecolors = "dimgray")
         
@@ -946,6 +960,9 @@ class DataVisualisation:
         # Set axis limits, if requested
         self.ax.set_xlim((float(xmm[0]), float(xmm[1]))) if xmm != None else None
         self.ax.set_ylim((float(ymm[0]), float(ymm[1]))) if ymm != None else None
+        
+        # Apply ylog
+        self.ax.set_yscale('log') if ylog else None
         
         # Add x and y axis based on user selection
         self.ax.set_xlabel(self.x_value.get())
