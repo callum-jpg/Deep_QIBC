@@ -112,7 +112,7 @@ class LoadImages:
             Function is called in the following for loop. image_group is
             the element of grouped_images. 
             """
-            
+            # I don't like this. I think it's inaccurate and clunky
             output_dict = {}
             for channel_img in image_group:
                 if len(self.channels) == 0:
@@ -125,8 +125,9 @@ class LoadImages:
                         if channel in channel_img:
                             # Values in list so read img array can be appended
                             output_dict.update({channel: [channel_img]})
-                        if channel == self.object_channel:
-                            output_dict.update({"object_image": [channel_img]})
+                    if self.object_channel in channel_img:
+                        output_dict.update({"object_image": [channel_img]})
+                        # print(output_dict["object_image"])
             
             return output_dict
         
@@ -141,7 +142,6 @@ class LoadImages:
             
             image_info.update(sort_images(image_set))
             
-
             self.image_info.append(image_info)
             
     def load_images(self, image_path, object_channel=None):
@@ -220,21 +220,14 @@ class LoadImages:
                     if object_channel != None:
                         _open_image = skimage.io.imread(open_path)
                         object_image = skimage.img_as_ubyte(_open_image)
-
-                    open_image = skimage.io.imread(open_path)
-                
-                    # # Rescale to 8-bit
-                    # # Since model was trained on 8-bit DSB18 images
-                    # out = np.zeros(open_image.shape, dtype=np.uint8)
-                    # open_image = cv2.normalize(open_image, out, 0, 255, cv2.NORM_MINMAX)                
-                    
-                    if object_image.ndim != 3: # Convert image to RGB if not already
-                        object_image = skimage.color.gray2rgb(object_image)
-                    if object_channel != None:
+                        if object_image.ndim != 3: # Convert image to RGB if not already
+                            object_image = skimage.color.gray2rgb(object_image)
                         self.image_info[image_id]["object_image"].append(object_image)
+
+                    open_image = skimage.io.imread(open_path)           
+                        
                     self.image_info[image_id][channel].append(open_image)
 
-        
         return self.image_info
 
 
