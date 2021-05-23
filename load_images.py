@@ -105,7 +105,7 @@ class LoadImages:
         def sort_images(image_group):
             """
             Returns a dictionary that arranges image names in the dict values
-            with the corresponding cahnnel as the key.
+            with the corresponding channel as the key.
             
             Image names are the first element in the list for a given key.
             
@@ -118,12 +118,15 @@ class LoadImages:
                 if len(self.channels) == 0:
                     # No channel names given. Load single image
                     output_dict.update({'image_data': [channel_img]})
+                    # If channels are 0, objects will be detected in all images
+                    output_dict.update({'object_image': [channel_img]})
                 else: 
                     for channel in self.channels:
                         if channel in channel_img:
                             # Values in list so read img array can be appended
                             output_dict.update({channel: [channel_img]})
-                            #print(output_dict)
+                        if channel == self.object_channel:
+                            output_dict.update({"object_image": [channel_img]})
             
             return output_dict
         
@@ -137,9 +140,11 @@ class LoadImages:
                                "path": self.image_path})
             
             image_info.update(sort_images(image_set))
+            
+
             self.image_info.append(image_info)
             
-    def load_images(self, image_path):
+    def load_images(self, image_path, object_channel=None):
         """
         Loads 2d array (grayscale) for each image into image_info.
         image_info = [{
@@ -151,6 +156,8 @@ class LoadImages:
         
         # Set path in which images are found
         self.image_path = image_path
+        
+        self.object_channel = object_channel
         
         # Perform grouping of images into image sets
         # If there are 2+ channels, perform grouping of image sets into a
@@ -166,43 +173,67 @@ class LoadImages:
         
         # Load image information as np arrays to corresponding channel
         for image_id, image_set in enumerate(self.image_info):
+            #print(image_id, image_set)
+            
             if len(self.channels) == 0:
                 open_path = os.path.join(image_set["path"], image_set["image_data"][0])
-                _open_image = skimage.io.imread(open_path)
+                # _open_image = skimage.io.imread(open_path)
                 # skimage.io.imread opens image as dtype uint16. While this
                 # works for nuclei detection, later visualisation of images 
                 # with matplotlib imshow requires unit8. img_as_ubyte converts
                 # to unit8 (will need further conversion from RGB to gray, though)
-                open_image = skimage.img_as_ubyte(_open_image)
+                # open_image = skimage.img_as_ubyte(_open_image)
                 
-                # Rescale to 8-bit
-                # Since model was trained on 8-bit DSB18 images
-                out = np.zeros(open_image.shape, dtype=np.uint8)
-                open_image = cv2.normalize(open_image, out, 0, 255, cv2.NORM_MINMAX)                
+
+                # Image opened 'as is' and will be used for intensity readings. 
+                open_image = skimage.io.imread(open_path)
                 
-                if open_image.ndim != 3: # Convert image to RGB if not already
-                    open_image = skimage.color.gray2rgb(open_image)
+                # Mask R-CNN trained on 8-bit images but converting input images
+                # to 8-bit will lead to loss in precision for intensity readings.
+                # Instead, create a new 8-bit image that will be used only for detection
+                object_image = skimage.img_as_ubyte(open_image)
+                
+                # # Rescale to 8-bit
+                # # Since model was trained on 8-bit DSB18 images
+                # out = np.zeros(open_image.shape, dtype=np.uint8)
+                # open_image = cv2.normalize(open_image, out, 0, 255, cv2.NORM_MINMAX)         
+                
+                if object_image.ndim != 3: # Convert image to RGB if not already
+                    object_image = skimage.color.gray2rgb(object_image)
                 self.image_info[image_id]["image_data"].append(open_image)
+                self.image_info[image_id]["object_image"].append(open_image)
                 
                 
             else:
                 for channel in self.channels:
+                    if object_channel == None:
+                        raise Exception("No object channel selected for a muilti channel image")
+                    
                     open_path = os.path.join(image_set["path"], image_set[channel][0])
-                    _open_image = skimage.io.imread(open_path)
+                    # _open_image = skimage.io.imread(open_path)
                     # skimage.io.imread opens image as dtype uint16. While this
                     # works for nuclei detection, later visualisation of images 
                     # with matplotlib imshow requires unit8. img_as_ubyte converts
                     # to unit8 (will need further conversion from RGB to gray, though)
-                    open_image = skimage.img_as_ubyte(_open_image)
+                    #open_image = skimage.img_as_ubyte(_open_image)
                     
-                    # Rescale to 8-bit
-                    # Since model was trained on 8-bit DSB18 images
-                    out = np.zeros(open_image.shape, dtype=np.uint8)
-                    open_image = cv2.normalize(open_image, out, 0, 255, cv2.NORM_MINMAX)                
+                    if object_channel != None:
+                        _open_image = skimage.io.imread(open_path)
+                        object_image = skimage.img_as_ubyte(_open_image)
+
+                    open_image = skimage.io.imread(open_path)
+                
+                    # # Rescale to 8-bit
+                    # # Since model was trained on 8-bit DSB18 images
+                    # out = np.zeros(open_image.shape, dtype=np.uint8)
+                    # open_image = cv2.normalize(open_image, out, 0, 255, cv2.NORM_MINMAX)                
                     
-                    if open_image.ndim != 3: # Convert image to RGB if not already
-                        open_image = skimage.color.gray2rgb(open_image)
+                    if object_image.ndim != 3: # Convert image to RGB if not already
+                        object_image = skimage.color.gray2rgb(object_image)
+                    if object_channel != None:
+                        self.image_info[image_id]["object_image"].append(object_image)
                     self.image_info[image_id][channel].append(open_image)
+
         
         return self.image_info
 
