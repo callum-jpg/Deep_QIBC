@@ -8,6 +8,7 @@ import os
 import numpy as np
 import pandas as pd
 import skimage.io # For browse img viewer
+import cv2
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -432,18 +433,20 @@ class RunDetection:
         if unique_ch_names:
             channels = unique_ch_names
         else:
-            channels = None
-        
-        images = load_images.LoadImages(app.channels.grouping_regex.get() if channels != None else None)
-        images.add_channels(unique_ch_names)
-        images.load_images(app.browse.foldername)
-        
+            channels = None#
+            
         if len(unique_ch_names) > 0:
             selected_obj = app.channels.object_channel.get()
             # Get delineating string that corresponds to the object channel
             obj_channel = unique_ch_names[selected_obj - 1]
         else:
             obj_channel = None
+        
+        images = load_images.LoadImages(app.channels.grouping_regex.get() if channels != None else None)
+        images.add_channels(unique_ch_names)
+        images.load_images(app.browse.foldername, obj_channel)
+        
+
             
         nuclei_detection = detect.DetectNucleus()
         
@@ -451,7 +454,7 @@ class RunDetection:
                                         # lower() since written as CPU or Low
                                         self.computation_level.get().lower(),
                                         self.cpu_gpu.get().lower(),
-                                        obj_channel)
+                                        "object_image")
         
         self.detection_results.append(nuclei_detection.results)
 
@@ -467,7 +470,7 @@ class RunDetection:
                                                    channels)
         
         # Add itentified masks to image_info
-        intensity.consolidate_masks_with_images(obj_channel)
+        intensity.consolidate_masks_with_images("object_image")
 
         data = intensity.record_intensity()
         
@@ -590,8 +593,12 @@ class ImageDisplay:
         # [1] enters the image specific data ([0] would be image filename[0] + image array[1])
         # [0] iamge data is a dict in a list, so this enters that first dict
         # 'masks' or whatever else to read the desired data   
-        source_img = self.detection_data[0][index][0][1]
+        _source_img = self.detection_data[0][index][0][1]
         masks_img = self.detection_data[0][index][1][0]['masks']  
+        
+        # Rescale image histrogram so it's visible for imshow
+        out = np.zeros(_source_img.shape, dtype=np.uint8)
+        source_img = cv2.normalize(_source_img, out, 0, 255, cv2.NORM_MINMAX)   
 
         image = visualise.colour_masks(source_img, masks_img)
 
