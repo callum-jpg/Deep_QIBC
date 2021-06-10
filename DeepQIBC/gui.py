@@ -1002,7 +1002,7 @@ class DataVisualisation:
     def canvas_clear(self, canvas):
         """"Delete previously plotted canvas"""
         for item in canvas.get_tk_widget().find_all():
-            print("deleting:", item)
+            # print("deleting:", item)
             canvas.get_tk_widget().delete(item)
 
 

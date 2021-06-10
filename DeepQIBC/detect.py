@@ -147,73 +147,73 @@ class AdjustNucleusConfigHigh(nucleus.NucleusConfig):
  
 
 
-class DetectNucleus_thread:
-    def __init__(self, queue):
-        # Instantiate the desired computation config
-        self.config_low = AdjustNucleusConfigLow()
-        self.config_med = AdjustNucleusConfigMed()
-        self.config_high = AdjustNucleusConfigHigh()
-        self.results = []
+# class DetectNucleus_thread:
+#     def __init__(self, queue):
+#         # Instantiate the desired computation config
+#         self.config_low = AdjustNucleusConfigLow()
+#         self.config_med = AdjustNucleusConfigMed()
+#         self.config_high = AdjustNucleusConfigHigh()
+#         self.results = []
         
-    def run_detection(self, images, computation_requirement="low", device="cpu",
-                      object_channel=None,):
-        """
-        Runs the Mask R-CNN model detection. Images is from images.image_info.
+#     def run_detection(self, images, computation_requirement="low", device="cpu",
+#                       object_channel=None,):
+#         """
+#         Runs the Mask R-CNN model detection. Images is from images.image_info.
         
-        object_channel: the image that the masks will be generated 
-        for (eg. DAPI-stained nuclei).
+#         object_channel: the image that the masks will be generated 
+#         for (eg. DAPI-stained nuclei).
         
-        computation_requirement: low/med/high will determine the intensity 
-        that the model is run at. Low settings are less accurate but less
-        computationally intensive than high settings.
+#         computation_requirement: low/med/high will determine the intensity 
+#         that the model is run at. Low settings are less accurate but less
+#         computationally intensive than high settings.
         
-        device: select cpu or gpu for running the model
-        """
+#         device: select cpu or gpu for running the model
+#         """
         
-        # Load optional configs
-        if computation_requirement == "low":
-            print("Using low settings")
-            config = self.config_low
-        if computation_requirement == "med" or "Med" or "Medium":
-            print("Using medium settings")
-            config = self.config_med
-        if computation_requirement == "high":
-            print("Using high settings")
-            config = self.config_high
+#         # Load optional configs
+#         if computation_requirement == "low":
+#             print("Using low settings")
+#             config = self.config_low
+#         if computation_requirement == "med" or "Med" or "Medium":
+#             print("Using medium settings")
+#             config = self.config_med
+#         if computation_requirement == "high":
+#             print("Using high settings")
+#             config = self.config_high
 
-        # Load preferred device
-        if device == "cpu":
-            DEVICE = "/cpu:0"
-        if device == "gpu":
-            DEVICE = "/GPU:0"
-        else:
-            DEVICE = "/cpu:0"
+#         # Load preferred device
+#         if device == "cpu":
+#             DEVICE = "/cpu:0"
+#         if device == "gpu":
+#             DEVICE = "/GPU:0"
+#         else:
+#             DEVICE = "/cpu:0"
             
-        if object_channel is None:
-            print("No object channel given. Using default.")
-            object_channel = "image_data"
+#         if object_channel is None:
+#             print("No object channel given. Using default.")
+#             object_channel = "image_data"
             
             
-        with tf.device(DEVICE): 
-                model = modellib.MaskRCNN(mode="inference",
-                              model_dir=LOGS_DIR,
-                              config=config)
+#         with tf.device(DEVICE): 
+#                 model = modellib.MaskRCNN(mode="inference",
+#                               model_dir=LOGS_DIR,
+#                               config=config)
                 
         
-        print("Loading weights ", NUCLEUS_TRAINED_WEIGHTS)
-        model.load_weights(NUCLEUS_TRAINED_WEIGHTS, by_name=True)
+#         print("Loading weights ", NUCLEUS_TRAINED_WEIGHTS)
+#         model.load_weights(NUCLEUS_TRAINED_WEIGHTS, by_name=True)
         
-        start_time = time.time()
+#         start_time = time.time()
         
-        for img in images:
-            print(img[object_channel]) # returns the image name
-            self.results.append([img[object_channel][0], 
-                                 model.detect([img[object_channel][1]], verbose=0)])
-            # Put the detection data into the queue to be received by the tkinter GUI
-            self.queue.put([img[object_channel][0], 
-                                 model.detect([img[object_channel][1]], verbose=1)])
+#         for img in images:
+#             print(img[object_channel]) # returns the image name
+#             self.results.append([img[object_channel][0], 
+#                                  model.detect([img[object_channel][1]], verbose=0)])
+#             # Put the detection data into the queue to be received by the tkinter GUI
+#             self.queue.put([img[object_channel][0], 
+#                                  model.detect([img[object_channel][1]], verbose=1)])
             
-        print("--- {} seconds to run detection ---".format(time.time() - start_time))
+#         print("--- {} seconds to run detection ---".format(time.time() - start_time))
         
 
 class DetectNucleus:
@@ -279,6 +279,6 @@ class DetectNucleus:
             self.results.append([img[object_channel], 
                                  model.detect([img[object_channel][1]], verbose=1)])
             
-        print("--- {} seconds ---".format(time.time() - start_time))
+        print("--- {} seconds to run detection ---".format(time.time() - start_time))
 
 
