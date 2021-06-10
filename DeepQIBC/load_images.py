@@ -286,23 +286,4 @@ class LoadImagesMasks(utils.Dataset):
         return mask, np.ones([mask.shape[-1]], dtype=np.int32)
     
 
-        
-                
-                
-                
-    
-#%% Testing
 
-# images = LoadImages()
-
-# images.add_channels(["w1DAPI", "w2Cy5", "w3mCherry", "w4GFP"])
-
-# image_dir = "images"
-
-# images.load_images(image_dir)
-
-# #%% Get size of image_info in bytes
-
-# from sys import getsizeof
-
-# #print(getsizeof(images.image_info))

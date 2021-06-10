@@ -65,7 +65,7 @@ class AdjustNucleusConfigHigh(nucleus.NucleusConfig):
         IMAGE_MIN_DIM = 2048
         IMAGE_MAX_DIM = 2048  
 
-
+# My attempt at threading. Only works for one run then breaks
 # class DetectNucleus(Thread):
 #     def __init__(self, queue, images, computation_requirement="low", device="cpu",
 #                  object_channel=None):
@@ -213,7 +213,7 @@ class DetectNucleus_thread:
             self.queue.put([img[object_channel][0], 
                                  model.detect([img[object_channel][1]], verbose=1)])
             
-        print("--- {} seconds ---".format(time.time() - start_time))
+        print("--- {} seconds to run detection ---".format(time.time() - start_time))
         
 
 class DetectNucleus:
@@ -282,53 +282,3 @@ class DetectNucleus:
         print("--- {} seconds ---".format(time.time() - start_time))
 
 
-# #%%
-
-# # Load images
-# images = load_images.LoadImages()
-
-# images.add_channels(["w1DAPI", "w2Cy5", "w3mCherry", "w4GFP"])
-
-# image_dir = "images"
-
-# images.load_images(image_dir)
-
-# # Run detection
-# nuclei_detection = DetectNucleus()
-
-# # Select channel to run detection on (in this case, DAPI)
-# object_channel = images.channels[0]
-
-# nuclei_detection.run_detection(images.image_info, object_channel, "low", "cpu")
-
-# nuclei_detection.results
-
-# #%%
-
-# from mrcnn import visualize
-
-# # images = load_images.LoadImages()
-
-# # images.add_channels(["w1DAPI", "w2Cy5", "w3mCherry", "w4GFP"])
-
-# # image_dir = "images"
-
-# # images.load_images(image_dir)
-
-# res1 = nuclei_detection.results[0][1][0]
-    
-# # In img_array, 0th element, 1st element is the image array
-# #display_image = skimage.color.gray2rgb(images.image_info[0]['w1DAPI'][1])
-
-# class_names = ['','']
-
-# visualize.display_instances(images.image_info[0]['w1DAPI'][1], 
-#                             res1['rois'], res1['masks'], res1['class_ids'], class_names,
-#                             show_bbox=False)
-
-
-    
-# # plt.imshow(skimage.color.rgb2gray(images.image_info[0]['w1DAPI'][1]), cmap="gray")
-# gray_image = skimage.color.rgb2gray(images.image_info[0]['w1DAPI'][1])
-# plt.imshow(gray_image, cmap="gray")
-# plt.axis("off")

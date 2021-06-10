@@ -275,9 +275,4 @@ def display_difference1(image, gt_masks, pred_masks):
     #                                   img[:,:,c])
     
     return img
-        
-    
-# fig, ax = plt.subplots(1, 1)            
-# ax.imshow(display_difference(res["image"], res["gt_mask"], res["masks"]))
-
 

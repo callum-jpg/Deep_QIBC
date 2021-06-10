@@ -67,12 +67,13 @@ def json_to_png_mask(gt_image, json_masks):
         skimage.io.imsave('{}/{}_mask_{}.png'.format(masks_dir, filename, i+1), mask)
         
     
-# #%% Tests for json_to_png_mask()
+#%% Tests for json_to_png_mask()
 
-# json_path = "/home/think/Documents/deep-click/datasets/nucleus/stats_images/BBBC006-oof-u2os/images+masks/labelled_nuclei at z16.json"
-# img_path = "/home/think/Documents/deep-click/datasets/nucleus/stats_images/BBBC006-oof-u2os/images+masks/oof-u2os.png"
+json_path = "/home/think/Documents/deep-click/datasets/nucleus/stats_images/BBBC006-oof-u2os/images+masks/labelled_nuclei at z16.json"
+img_path = "/home/think/Documents/deep-click/datasets/nucleus/stats_images/BBBC006-oof-u2os/images+masks/oof-u2os.png"
 
-# json_to_png_mask(img_path, json_path)
+json_to_png_mask(img_path, json_path)
+
 
 #%%
 
