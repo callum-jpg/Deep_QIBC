@@ -2,13 +2,9 @@
 # DeepQIBC - Deep learning Quantitative Image-Based Cytometry
 
 DeepQIBC (Quantitative Image-Based Cytometry) is a program that aims to equip researchers with the ability to utilise deep learning algorithms to detect nuclei within multichannel microscopy images through a user-friendly interface. By utilising deep learning, DeepQIBC aims to be versatile and requires minimal setup in nuclei detection by being independent of cell type, microscope or magnification used.
-<br/>
-<br/>
 
 #### Adjustable settings
-A drawback of deep learning is its enduring desire for computing power, particularly in the realm of high resolution microscopy image analysis. DeepQIBC aims to address this by offering users 3 computation requirement levels: Low, Medium and High. By reducing the computation requirement, these options can help to reduce the computational load on a user's machine and enable the curious to test how deep learning algorithms work with their images. Quantification of how these varying computational levels perform can be found in the **(((STATS SECTION)))**. Moreover, DeepQIBC was developed and tested entirely on a ThinkPad X230 (i5-3320M, 16GB RAM), which is ~9 years old, demonstrating that DeepQIBC can be used on older hardware and offer initial insight prior to more thorough analysis.
-<br/>
-<br/>
+A drawback of deep learning is its enduring desire for computing power, particularly in the realm of high resolution microscopy image analysis. DeepQIBC aims to address this by offering users 3 computation requirement levels: Low, Medium and High. By reducing the computation requirement, these options can help to reduce the computational load on a user's machine and enable the curious to test how deep learning algorithms work with their images. Quantification of how these varying computational levels perform can be found in the [testing DeepQIBC performance section](#stats-section). Moreover, DeepQIBC was developed and tested entirely on a ThinkPad X230 (i5-3320M, 16GB RAM), which is ~9 years old, demonstrating that DeepQIBC can be used on older hardware and offer initial insight prior to more thorough analysis.
 
 #### Data exploration
 Following the identification of nuclei, DeepQIBC records pixel intensities across all channels within the identified nuclei and this data can be saved. Additionally, DeepQIBC also enables the user to gain initial insight into the recorded data. This is achieved by providing a gallery of the input images with the detected nuclei objects superimposed over the original image, allowing the user to determine if image segmentation has been successful. Additionally, DeepQIBC provides initial insight into the recorded data in a scatter plot. The axes, limits and point colours of these plots can be swiftly changed and allows for the delineation of heterogeneous single cell data into defined populations, such as cell cycle stage. This can enable users to determine, for example, the accumulation of a particular marker, such as DNA damage, in a specific phase of the cell cycle.
@@ -18,7 +14,22 @@ Click below for a video demonstrating the workflow of DeepQIBC:
 [![An Introduction to DeepQIBC](https://img.youtube.com/vi/dkY1c4t66ig/0.jpg)](https://www.youtube.com/watch?v=dkY1c4t66ig)
 
 ## Setting up DeepQIBC
-DeepQIBC uses Mask R-CNN to identify nuclei (https://github.com/matterport/Mask_RCNN).
+<a name="setup-guide"></a>
+
+1. To begin, either:
+  - Clone the repo `git clone https://github.com/callum-jpg/DeepQIBC`
+  - Download and extract the `DeepQIBC_v1.0.zip` archive from the latest release
+2. Download the weights file `mask_rcnn_nucleus.h5` from the latest release and place this file in the `DeepQIBC/weights`subfolder.
+3. Set up the DeepQIBC requirement using conda:
+  1. While inside the `Deep_QIBC` folder run the command `conda env create --file environment.yaml`
+    - This will create a new conda environment called DeepQIBC with all of the required packages to run DeepQIBC
+  2. Then, `conda activate DeepQIBC`
+4. Navigate into the DeepQIBC directory
+  - Windows: `cwd DeepQIBC`
+  - Linux/Mac: `cd DeepQIBC`
+5. Then run the command `python gui.py` to begin using DeepQIBC
+
+If there any any problems, please raise an issue.
 
 
 ## DeepQIBC measurements
@@ -42,6 +53,7 @@ DeepQIBC uses Mask R-CNN to identify nuclei (https://github.com/matterport/Mask_
 
 
 ## Testing DeepQIBC performance
+<a name="stats-section"></a>
 
 DeepQIBC was tested in the detection of nuclei in three image sets in order to give an example of how it performs across different cell types and magnifications. These image sets are:
 
@@ -112,6 +124,6 @@ Images were form the imageset BBBC008v1 from the Broad Bioimage Benchmark Collec
 
 
 ## Next steps
-While recording pixel intensities within a defined region (e.g. a nuclei object) is simple, the application of deep learning to generate these identified masks is abstract to the end user, such as a researcher. Here, DeepQIBC aims to make the application of deep learning algorithms to biological images simple and intuitive. Future work could aim to extend the image types identified by DeepQIBC (DAPI-stained nuclei) to a wider range of biological sample types, as was achieved in the Kaggle Data Science Bowl 2018 (NATURE REF).
+While recording pixel intensities within a defined region (e.g. a nuclei object) is simple, the application of deep learning to generate these identified masks is abstract to the end user, such as a researcher. Here, DeepQIBC aims to make the application of deep learning algorithms to biological images simple and intuitive. Future work could aim to extend the image types identified by DeepQIBC (DAPI-stained nuclei) to a wider range of biological sample types, as was achieved in the Kaggle Data Science Bowl 2018 (Caicedo et al. Nature Methods, 2019).
 
 While DeepQIBC only identifies nuclei, future work could also begin to identify other morphological features of cells. Deep learning could identify subtle features within images and find relationships between features that would not otherwise be assessed by a researcher. This in part would be enabled by the extraction of vast swathes of data from biological images by deep learning and enable researchers to exploit new discrepancies or trends within their data. However, it is imperative that the tools that are developed in this area are user-friendly, offer intuitive data analysis and visualisation.
