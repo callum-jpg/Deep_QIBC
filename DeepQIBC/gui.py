@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import skimage.io # For browse img viewer
 import cv2
+import time
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -433,7 +434,7 @@ class RunDetection:
         if unique_ch_names:
             channels = unique_ch_names
         else:
-            channels = None#
+            channels = None
             
         if len(unique_ch_names) > 0:
             selected_obj = app.channels.object_channel.get()
@@ -441,13 +442,14 @@ class RunDetection:
             obj_channel = unique_ch_names[selected_obj - 1]
         else:
             obj_channel = None
-        
+
+
         images = load_images.LoadImages(app.channels.grouping_regex.get() if channels != None else None)
         images.add_channels(unique_ch_names)
         images.load_images(app.browse.foldername, obj_channel)
-        
 
-            
+        start_time = time.time()
+        
         nuclei_detection = detect.DetectNucleus()
         
         nuclei_detection.run_detection(images.image_info, 
@@ -466,13 +468,15 @@ class RunDetection:
         # print(labelled.labelled_masks[0]['masks'].max())
         
         intensity = process_images.RecordIntensity(images.image_info, 
-                                                   labelled.labelled_masks,
-                                                   channels)
+                                                    labelled.labelled_masks,
+                                                    channels)
         
         # Add itentified masks to image_info
         intensity.consolidate_masks_with_images("object_image")
 
         data = intensity.record_intensity()
+        
+        print("--- {} seconds for full analysis ---".format(time.time() - start_time))
         
         # Pass data to data visualisation widget
         app.data_vis.update_data(data)
@@ -647,7 +651,7 @@ class ImageDisplay:
         canvas: a FigureCanvasTkAgg object
         """
         for item in canvas.get_tk_widget().find_all():
-            print("deleting:", item)
+            # print("deleting:", item)
             canvas.get_tk_widget().delete(item)
 
     def next_img(self):        
@@ -732,9 +736,10 @@ class DataVisualisation:
         # x limits
         # min/max must be string var to allow for floats
         self.x_min = tk.StringVar(value = None)
-        self.entry_x_min = tk.Entry(self.container, textvariable= self.x_min,
-                                    validate = "key", 
-                                    validatecommand=(self.validate, "%P"))
+        self.entry_x_min = tk.Entry(self.container, textvariable= self.x_min)
+        # self.entry_x_min = tk.Entry(self.container, textvariable= self.x_min,
+        #                             validate = "key", 
+        #                             validatecommand=(self.validate, "%P"))
         
         self.entry_x_min.grid(row = 2, column = 2, ipady=2)
       
@@ -815,7 +820,7 @@ class DataVisualisation:
         """Validate that user input is a float"""
         try:
             # Check if x is either length 0 or a float
-            x == "" or float(x)
+            x == "" or float(x) or "e"
             return True
         except:
             return False
@@ -957,9 +962,10 @@ class DataVisualisation:
                                          y = plot_data[y], 
                                          # Only plot colour if requested
                                          c = plot_data[colour] if colour != None else "dimgray",
-                                         s=5,
+                                         s=10,
                                          cmap = self.plot_cmap,
-                                         edgecolors = "dimgray")
+                                         edgecolors = "dimgray",
+                                         linewidth = 0.5)
         
         # Colour legend
         if colour != None: colbar = self.fig.colorbar(self.data_plot, shrink=.3, pad=0.05, aspect=10)
