@@ -200,8 +200,8 @@ class LoadImages:
                 
                 if object_image.ndim != 3: # Convert image to RGB if not already
                     object_image = skimage.color.gray2rgb(object_image)
-                self.image_info[image_id]["image_data"].append(open_image)
-                self.image_info[image_id]["object_image"].append(open_image)
+                self.image_info[image_id]["image_data"].append(object_image)
+                self.image_info[image_id]["object_image"].append(object_image)
                 
                 
             else:
