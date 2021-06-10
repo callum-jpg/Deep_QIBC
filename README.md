@@ -13,8 +13,8 @@ Click below for a video demonstrating the workflow of DeepQIBC:
 
 [![An Introduction to DeepQIBC](https://img.youtube.com/vi/dkY1c4t66ig/0.jpg)](https://www.youtube.com/watch?v=dkY1c4t66ig)
 
-## Setting up DeepQIBC
 <a name="setup-guide"></a>
+## Setting up DeepQIBC
 
 1. To begin, either:
   - Clone the repo `git clone https://github.com/callum-jpg/DeepQIBC`
@@ -50,10 +50,8 @@ If there any any problems, please raise an issue.
 | edge_std_intensity    | Standard deviation of pixel intensities at edge of identified nuclei        |
 
 
-
-
-## Testing DeepQIBC performance
 <a name="stats-section"></a>
+## Testing DeepQIBC performance
 
 DeepQIBC was tested in the detection of nuclei in three image sets in order to give an example of how it performs across different cell types and magnifications. These image sets are:
 
