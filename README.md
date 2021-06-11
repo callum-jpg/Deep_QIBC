@@ -16,18 +16,19 @@ Click below for a video demonstrating the workflow of DeepQIBC:
 <a name="setup-guide"></a>
 ## Setting up DeepQIBC
 
+DeepQIBC uses Mask RCNN ([https://github.com/matterport/Mask_RCNN](https://github.com/matterport/Mask_RCNN)) and the minimal required files are included with DeepQIBC.
+
 1. To begin, either:
   - Clone the repo `git clone https://github.com/callum-jpg/DeepQIBC`
   - Download and extract the `DeepQIBC_v1.0.zip` archive from the [latest release](https://github.com/callum-jpg/Deep_QIBC/releases/tag/v1.0)
 2. Download the weights file `mask_rcnn_nucleus.h5` from the [latest release](https://github.com/callum-jpg/Deep_QIBC/releases/tag/v1.0) and place this file in the `DeepQIBC/weights`subfolder.
-3. Set up the DeepQIBC requirement using conda:
-  1. While inside the `Deep_QIBC` folder run the command `conda env create --file environment.yaml`
-    - This will create a new conda environment called DeepQIBC with all of the required packages to run DeepQIBC
-  2. Then, `conda activate DeepQIBC`
-4. Navigate into the DeepQIBC directory
+3. Set up the DeepQIBC requirement using conda by opening the terminal inside the `Deep_QIBC` folder. Then run the command `conda env create --file environment.yaml`
+  - This will create a new conda environment called DeepQIBC with all of the required packages to run DeepQIBC
+4. Then, `conda activate DeepQIBC`
+5. Navigate into the DeepQIBC directory
   - Windows: `cwd DeepQIBC`
   - Linux/Mac: `cd DeepQIBC`
-5. Then run the command `python gui.py` to begin using DeepQIBC
+6. Then run the command `python gui.py` to begin using DeepQIBC
 
 If there any any problems, please raise an issue.
 
