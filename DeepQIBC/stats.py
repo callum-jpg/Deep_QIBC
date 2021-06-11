@@ -2,7 +2,6 @@
 
 #%% Calculating IoU
 
-import qibc_nucleus
 import random
 import numpy as np
 import pandas as pd
@@ -464,3 +463,19 @@ ax.set_ylabel("F1 Score")
 ax.legend(legend, loc=(1, 0.4))
 fig.tight_layout()
 fig.savefig("low vs med setting for HT29.png", dpi=300, bbox_inches='tight')
+
+#%% Time to detect plot
+
+df = pd.read_csv("../deepqibc-time.csv")
+
+fig, ax = plt.subplots(1, 1, figsize=(6, 3))
+ax.bar(df["setting"], df["time"], color = plot_colours[3:6])
+ax.set_ylim([0, 100])
+
+ax.spines["top"].set_visible(False)
+ax.spines["right"].set_visible(False)
+ax.set_xlabel("")
+ax.set_ylabel("Time to detect (seconds)")
+
+fig.tight_layout()
+fig.savefig("deepqibc-detection-time.png", dpi=300, bbox_inches='tight')

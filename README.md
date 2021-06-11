@@ -54,6 +54,12 @@ If there any any problems, please raise an issue.
 <a name="stats-section"></a>
 ## Testing DeepQIBC performance
 
+### Comparison of detection time for different settings:
+Detection was performed using a ThinkPad X230 (i5-3320M, 16GB RAM) using the CPU setting on a single image that contained U2OS DAPI-stained nuclei.
+![](content/deepqibc-detection-time.png)
+
+
+### Testing DeepQIBC with different microscopy datasets
 DeepQIBC was tested in the detection of nuclei in three image sets in order to give an example of how it performs across different cell types and magnifications. These image sets are:
 
  - Human colon-cancer cells (HT29)
@@ -125,4 +131,4 @@ Images were form the imageset BBBC008v1 from the Broad Bioimage Benchmark Collec
 ## Next steps
 While recording pixel intensities within a defined region (e.g. a nuclei object) is simple, the application of deep learning to generate these identified masks is abstract to the end user, such as a researcher. Here, DeepQIBC aims to make the application of deep learning algorithms to biological images simple and intuitive. Future work could aim to extend the image types identified by DeepQIBC (DAPI-stained nuclei) to a wider range of biological sample types, as was achieved in the Kaggle Data Science Bowl 2018 (Caicedo et al. Nature Methods, 2019).
 
-While DeepQIBC only identifies nuclei, future work could also begin to identify other morphological features of cells. Deep learning could identify subtle features within images and find relationships between features that would not otherwise be assessed by a researcher. This in part would be enabled by the extraction of vast swathes of data from biological images by deep learning and enable researchers to exploit new discrepancies or trends within their data. However, it is imperative that the tools that are developed in this area are user-friendly, offer intuitive data analysis and visualisation.
+While DeepQIBC only identifies nuclei, future work could also begin to identify other morphological features of cells in an unsupervised manner. Deep learning could extract subtle features from images and find relationships between features that would not otherwise be assessed by a researcher. This could enable researchers to exploit new discrepancies or trends within their data. However, it is imperative that the tools that are developed in this area are user-friendly, offer intuitive data analysis and visualisation.
