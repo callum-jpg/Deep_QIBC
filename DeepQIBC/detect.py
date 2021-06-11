@@ -243,7 +243,7 @@ class DetectNucleus:
         if computation_requirement == "low":
             print("Using low settings")
             config = self.config_low
-        if computation_requirement == "med":
+        if computation_requirement == "medium":
             print("Using medium settings")
             config = self.config_med
         if computation_requirement == "high":
