@@ -20,7 +20,7 @@ DeepQIBC uses Mask RCNN ([https://github.com/matterport/Mask_RCNN](https://githu
 
 1. To begin, either:
   - Clone the repo `git clone https://github.com/callum-jpg/DeepQIBC`
-  - Download and extract the `DeepQIBC_v1.0.zip` archive from the [latest release](https://github.com/callum-jpg/Deep_QIBC/releases/tag/v1.0)
+  - Download and extract the `DeepQIBC_v1.zip` archive from the [latest release](https://github.com/callum-jpg/Deep_QIBC/releases/tag/v1.0)
 2. Download the weights file `mask_rcnn_nucleus.h5` from the [latest release](https://github.com/callum-jpg/Deep_QIBC/releases/tag/v1.0) and place this file in the `DeepQIBC/weights`subfolder.
 3. Set up the DeepQIBC requirement using conda by opening the terminal inside the `Deep_QIBC` folder. Then run the command `conda env create --file environment.yaml`
   - This will create a new conda environment called DeepQIBC with all of the required packages to run DeepQIBC
